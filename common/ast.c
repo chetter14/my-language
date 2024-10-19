@@ -14,14 +14,14 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 	lexer = MyLanguageLexerNew(input);
 	if (!lexer)
 	{
-		errorMessage = "Failed to make a lexer";
+		strcpy(errorMessage, "Failed to make a lexer");
 		return NULL;
 	}
 
 	tokenStream = antlr3CommonTokenStreamSourceNew(ANTLR3_SIZE_HINT, TOKENSOURCE(lexer));
 	if (!tokenStream)
 	{
-		errorMessage = "Failed to make a token stream";
+		strcpy(errorMessage, "Failed to make a token stream");
 		cleanUpResources();
 		return NULL;
 	}
@@ -29,7 +29,7 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 	parser = MyLanguageParserNew(tokenStream);
 	if (!parser)
 	{
-		errorMessage = "Failed to make a parser";
+		strcpy(errorMessage, "Failed to make a parser");
 		cleanUpResources();
 		return NULL;
 	}
@@ -37,7 +37,8 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 	MyLanguageParser_source_return result = parser->source(parser);
 	if (parser->pParser->rec->state->errorCount > 0)
 	{
-		errorMessage = "Failed to parse the file";
+		// errorMessage = "Failed to parse the file";
+		strcpy(errorMessage, "Failed to parse the file");
 		cleanUpResources();
 		return NULL;
 	}
@@ -57,7 +58,7 @@ bool makeDotFile(const char* outputFile, pANTLR3_BASE_TREE tree, char* errorMess
 	}
 
 	pANTLR3_STRING dotString = parser->adaptor->makeDot(parser->adaptor, tree);
-	
+
 	fprintf(dotFile, "%s", (char*)dotString->chars);
 	fclose(dotFile);
 
@@ -68,7 +69,7 @@ void cleanUpResources()
 {
 	if (parser)
 		parser->free(parser);
-	
+
 	if (tokenStream)
 		tokenStream->free(tokenStream);
 

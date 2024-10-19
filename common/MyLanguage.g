@@ -14,12 +14,29 @@ tokens
 	FuncSignature;
 	ArgList;
 	Arg;
+	TypeRef;
+	ArrayType;
 	SourceItem;
+	BlockStatement;
+	Condition;
+	Body;
+	Statement;
+	IfStatement;
+	WhileStatement;
+	RepeatCondition;
+	BreakStatement;
+	ExpressionStatement;
+	FunctionCall;
+	ArrayAccess;
+	Arguments;
+	Indices;
 }
 
 /*------------------------------------------------------------------
  * LEXER RULES
  *------------------------------------------------------------------*/
+			
+BuiltInType: 'bool'|'byte'|'int'|'uint'|'long'|'ulong'|'char'|'string' ;
 			
 Str : '"' ( ~('"'|'\\') | ('\\'.) )* '"'; // строка, окруженная двойными кавычками
 
@@ -35,8 +52,15 @@ fragment DIGITS : '0'..'9';
 
 Bool: 'true' | 'false'; // булевский литерал
 
-WS  :  (' '|'\r'|'\t'|'\u000C'|'\n') { $channel=HIDDEN; }
-  ;
+WS  :  (' '|'\r'|'\t'|'\u000C'|'\n') { $channel=HIDDEN; } ;
+
+SINGLE_COMMENT
+    :   '//' ~('\n' | '\r')* '\r'? '\n' { $channel = HIDDEN; }
+    ;
+
+MULTI_COMMENT
+    :   '/*' ( options {greedy=false;} : . )* '*/' { $channel = HIDDEN; }
+    ;
 
 Identifier : ('a'..'z' | 'A'..'Z' | '_')('a'..'z' | 'A'..'Z' | '_' | DIGITS)*; // идентификатор
  
@@ -46,14 +70,18 @@ Identifier : ('a'..'z' | 'A'..'Z' | '_')('a'..'z' | 'A'..'Z' | '_' | DIGITS)*; /
 		
 source: sourceItem* -> ^(Source sourceItem*);
 	
-typeRef
-	: 	('bool'|'byte'|'int'|'uint'|'long'|'ulong'|'char'|'string'
-		| Identifier
-		) ('array' '[' Dec ']')? // число - размерность
+typeRef	: (builtInType | identifier) arrayType?
+		-> ^(TypeRef builtInType? identifier? arrayType?)
 	;
 
+builtInType : BuiltInType ;
+
+identifier : Identifier ;
+
+arrayType : 'array'! '['! Dec ']'!;
+
 funcSignature
-	: Identifier '(' argList? ')' ('of' typeRef)? -> ^(FuncSignature Identifier argList? typeRef?)
+	: Identifier '(' argList? ')' ('of' typeRef)? -> ^(FuncSignature Identifier argList?)
 	;
 
 argList	
@@ -70,20 +98,13 @@ sourceItem
 	
 // STATEMENTS:
 
-statement // присваивание через '='   
-	: break_statement
-	| expr_statement
-	| if_statement
-	| while_statement
-	| repeat_statement
-	| block_statment
-	;
+statement : repeat_statement;
 
-block_statment : ('begin'|'{') (statement | sourceItem)* ('end'|'}') ;
+block_statment : ('begin'|'{') (statement | sourceItem)* ('end'|'}') -> ^(BlockStatement statement* sourceItem*);
 
-if_statement : 'if' expr 'then' statement ('else' statement)? ;
+if_statement : 'if' expr 'then' statement ('else' statement)? -> ^(IfStatement ^(Condition expr) ^(Body statement+));
 
-while_statement : ('while'|'until') expr statement* 'end' ;
+while_statement : ('while'|'until') expr statement* 'end' -> ^(WhileStatement ^(Condition expr) ^(Body statement*));
 
 repeat_statement 
 	: (if_statement
@@ -91,16 +112,17 @@ repeat_statement
 	| block_statment
 	| break_statement
 	| expr_statement
-	) ('while'|'until') expr ';' 
+	) (('while'|'until') expr ';')? 
+	-> ^(Statement if_statement? while_statement? block_statment? break_statement? expr_statement? ^(RepeatCondition expr)?)
 	;
 	
-break_statement : 'break' ';' ;
+break_statement : 'break' ';' -> ^(BreakStatement);
 
-expr_statement : expr ';' ;
+expr_statement : expr ';' -> ^(ExpressionStatement expr);
 
 // EXPRESSIONS:
 
-expr : assignment_expr ;
+expr : assignment_expr;
 
 assignment_expr : logical_expr ( '='^ expr )? ;
 
@@ -117,16 +139,17 @@ multiplicative_expr : unary_expr ( ('*' | '/')^ unary_expr )* ;
 unary_expr : (un_op^ unary_expr | primary_expr) ;
 
 primary_expr
-	: (braces
-	| place
+	: ( braces 
+	| place 
 	| literal
-	) (
-		( '(' (expr (',' expr)*)? ')' )?	// call handling
-		| ( '[' expr ('..' expr)? ']' )?	// slice handling
-	)
-    ;
+	) (function_call | array_access)*
+	;
+	
+function_call : '(' (expr (',' expr)*)? ')' -> ^(FunctionCall expr*);
 
-braces : '(' expr ')' ;
+array_access : '[' expr ('..' expr)? ']' -> ^(ArrayAccess expr+);
+
+braces : '('! expr ')'! ;
 
 place : Identifier ;
 
