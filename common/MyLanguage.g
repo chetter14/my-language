@@ -15,7 +15,6 @@ tokens
 	ArgList;
 	Arg;
 	TypeRef;
-	ArrayType;
 	SourceItem;
 	BlockStatement;
 	Condition;
@@ -28,8 +27,6 @@ tokens
 	ExpressionStatement;
 	FunctionCall;
 	ArrayAccess;
-	Arguments;
-	Indices;
 }
 
 /*------------------------------------------------------------------
