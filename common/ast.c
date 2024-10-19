@@ -1,17 +1,17 @@
 #include "ast.h"
 #include <antlr3.h>
 #include <stdbool.h>
-#include "GeneratorLexer.h"
-#include "GeneratorParser.h"
+#include "MyLanguageLexer.h"
+#include "MyLanguageParser.h"
 
 
-static pGeneratorLexer lexer;
+static pMyLanguageLexer lexer;
 static pANTLR3_COMMON_TOKEN_STREAM tokenStream;
-static pGeneratorParser parser;
+static pMyLanguageParser parser;
 
 pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 {
-	lexer = GeneratorLexerNew(input);
+	lexer = MyLanguageLexerNew(input);
 	if (!lexer)
 	{
 		errorMessage = "Failed to make a lexer";
@@ -26,7 +26,7 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 		return NULL;
 	}
 
-	parser = GeneratorParserNew(tokenStream);
+	parser = MyLanguageParserNew(tokenStream);
 	if (!parser)
 	{
 		errorMessage = "Failed to make a parser";
@@ -34,7 +34,7 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 		return NULL;
 	}
 
-	GeneratorParser_source_return result = parser->source(parser);
+	MyLanguageParser_source_return result = parser->source(parser);
 	if (parser->pParser->rec->state->errorCount > 0)
 	{
 		errorMessage = "Failed to parse the file";

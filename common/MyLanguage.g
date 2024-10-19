@@ -1,4 +1,4 @@
-grammar Generator;
+grammar MyLanguage;
  
 options
 {
@@ -15,52 +15,6 @@ tokens
 	ArgList;
 	Arg;
 	SourceItem;
-}
- 
- 
-@members
-{
-
-/* public static void main(String[] args) throws Exception {
-        GeneratorLexer lex = new GeneratorLexer(new ANTLRFileStream(args[0]));
-        CommonTokenStream tokens = new CommonTokenStream(lex);
- 
-        GeneratorParser parser = new GeneratorParser(tokens);
- 
-        try {
-            parser.expr();
-        } catch (RecognitionException e)  {
-            e.printStackTrace();
-        }
-    } */
- 
-#include "GeneratorLexer.h"
- 
- int main(int argc, char * argv[])
- {
- 
-    pANTLR3_INPUT_STREAM           input;
-    pGeneratorLexer                lex;
-    pANTLR3_COMMON_TOKEN_STREAM    tokens;
-    pGeneratorParser               parser;
- 
-    input  = antlr3AsciiFileStreamNew          ((pANTLR3_UINT8)argv[1]);
-    lex    = GeneratorLexerNew                 (input);
-    tokens = antlr3CommonTokenStreamSourceNew  (ANTLR3_SIZE_HINT, TOKENSOURCE(lex));
-    parser = GeneratorParserNew                (tokens);
- 
-    parser  ->expr(parser);
- 
-    // Must manually clean up
-    //
-    parser ->free(parser);
-    tokens ->free(tokens);
-    lex    ->free(lex);
-    input  ->close(input);
- 
-    return 0;
- }
- 
 }
 
 /*------------------------------------------------------------------
