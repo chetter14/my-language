@@ -19,12 +19,18 @@ int main(int argc, char* argv[])
 	pANTLR3_BASE_TREE tree = getAST(input, errorMessage);
 	if (!tree)
 	{
-		printf("Error: %s! Termination!\n", errorMessage);
+		printf("Parsing error: %s! Termination!\n", errorMessage);
 		return 1;
 	}
 
-	// make DOT file by AST tree:
-	memset(&errorMessage[0], 0, ERROR_MSG_SIZE);	// reset message char string
+	// reset message char string
+	memset(&errorMessage[0], 0, ERROR_MSG_SIZE);	
+
+	if (!makeDotFile(argv[2], tree, errorMessage))
+	{
+		printf("Making dot file error: %s! Termination!\n", errorMessage);
+		return 1;
+	}
 
 	return 0;
 }
