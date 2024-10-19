@@ -8,6 +8,16 @@ options
 	backtrack=true;
 }
  
+tokens
+{
+	Source;
+	FuncSignature;
+	ArgList;
+	Arg;
+	SourceItem;
+}
+ 
+ 
 @members
 {
 
@@ -80,7 +90,7 @@ Identifier : ('a'..'z' | 'A'..'Z' | '_')('a'..'z' | 'A'..'Z' | '_' | DIGITS)*; /
  * PARSER RULES
  *------------------------------------------------------------------*/
 		
-source: sourceItem*;
+source: sourceItem* -> ^(Source sourceItem*);
 	
 typeRef
 	: 	('bool'|'byte'|'int'|'uint'|'long'|'ulong'|'char'|'string'
@@ -89,19 +99,19 @@ typeRef
 	;
 
 funcSignature
-	: Identifier '(' argList? ')' ('of' typeRef)?
+	: Identifier '(' argList? ')' ('of' typeRef)? -> ^(FuncSignature Identifier argList? typeRef?)
 	;
 
 argList	
-	: arg (',' arg)*
+	: arg (',' arg)* -> ^(ArgList arg+)
 	;
 
 arg
-	: Identifier ('of' typeRef)?
+	: Identifier ('of' typeRef)? -> ^(Arg Identifier typeRef?)
 	;
 
 sourceItem
-	: 'def' funcSignature statement* 'end'
+	: 'def' funcSignature statement* 'end' -> ^(SourceItem funcSignature statement*)
 	;
 	
 // STATEMENTS:
@@ -138,19 +148,19 @@ expr_statement : expr ';' ;
 
 expr : assignment_expr ;
 
-assignment_expr : logical_expr ( '=' expr )? ;
+assignment_expr : logical_expr ( '='^ expr )? ;
 
-logical_expr : comparison_expr ( ('&&' | '||') expr)* ;
+logical_expr : comparison_expr ( ('&&' | '||')^ expr)* ;
 
 comparison_expr
-	: additive_expr ( ( '==' | '!=' | '<' | '>' | '<=' | '>=' ) additive_expr )? 
+	: additive_expr ( ( '==' | '!=' | '<' | '>' | '<=' | '>=' )^ additive_expr )? 
     ;
 
-additive_expr : multiplicative_expr ( ('+' | '-') multiplicative_expr )* ;
+additive_expr : multiplicative_expr ( ('+' | '-')^ multiplicative_expr )* ;
 
-multiplicative_expr : unary_expr ( ('*' | '/') unary_expr )* ;
+multiplicative_expr : unary_expr ( ('*' | '/')^ unary_expr )* ;
 
-unary_expr : (un_op unary_expr | primary_expr) ;
+unary_expr : (un_op^ unary_expr | primary_expr) ;
 
 primary_expr
 	: (braces
