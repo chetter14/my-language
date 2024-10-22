@@ -15,10 +15,12 @@ tokens
 	ArgList;
 	Arg;
 	TypeRef;
-	SourceItem;
+	Function;
 	BlockStatement;
 	Condition;
 	Body;
+	Then;
+	Else;
 	Statement;
 	IfStatement;
 	WhileStatement;
@@ -90,7 +92,7 @@ arg
 	;
 
 sourceItem
-	: 'def' funcSignature statement* 'end' -> ^(SourceItem funcSignature statement*)
+	: 'def' funcSignature statement* 'end' -> ^(Function funcSignature statement*)
 	;
 	
 // STATEMENTS:
@@ -99,7 +101,7 @@ statement : repeat_statement;
 
 block_statment : ('begin'|'{') (statement | sourceItem)* ('end'|'}') -> ^(BlockStatement statement* sourceItem*);
 
-if_statement : 'if' expr 'then' statement ('else' statement)? -> ^(IfStatement ^(Condition expr) ^(Body statement+));
+if_statement : 'if' expr 'then' statement ('else' statement)? -> ^(IfStatement ^(Condition expr) ^(Then statement) ^(Else statement)?);
 
 while_statement : ('while'|'until') expr statement* 'end' -> ^(WhileStatement ^(Condition expr) ^(Body statement*));
 
