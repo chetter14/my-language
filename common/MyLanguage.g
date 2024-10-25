@@ -12,9 +12,11 @@ tokens
 {
 	Source;
 	FuncSignature;
-	ArgList;
-	Arg;
+	ParameterList;
+	Parameter;
 	TypeRef;
+	ArrayType;
+	Array;
 	Function;
 	BlockStatement;
 	Condition;
@@ -27,6 +29,8 @@ tokens
 	RepeatCondition;
 	BreakStatement;
 	ExpressionStatement;
+	Indices;
+	Args;
 	FunctionCall;
 	ArrayAccess;
 }
@@ -69,7 +73,7 @@ Identifier : ('a'..'z' | 'A'..'Z' | '_')('a'..'z' | 'A'..'Z' | '_' | DIGITS)*; /
 		
 source: sourceItem* -> ^(Source sourceItem*);
 	
-typeRef	: (builtInType | identifier) arrayType?
+typeRef	: (builtInType | identifier | arrayType)
 		-> ^(TypeRef builtInType? identifier? arrayType?)
 	;
 
@@ -77,18 +81,20 @@ builtInType : BuiltInType ;
 
 identifier : Identifier ;
 
-arrayType : 'array'! '['! Dec ']'!;
+arrayType : (builtInType | identifier) arraySuf -> ^(ArrayType builtInType? identifier? arraySuf) ;
+
+arraySuf : 'array' '[' Dec ']' (arraySuf)? -> ^(Array Dec arraySuf?);
 
 funcSignature
-	: Identifier '(' argList? ')' ('of' typeRef)? -> ^(FuncSignature Identifier argList?)
+	: Identifier '(' parameterList? ')' ('of' typeRef)? -> ^(FuncSignature Identifier parameterList? typeRef?)
 	;
 
-argList	
-	: arg (',' arg)* -> ^(ArgList arg+)
+parameterList	
+	: parameter (',' parameter)* -> ^(ParameterList parameter+)
 	;
 
-arg
-	: Identifier ('of' typeRef)? -> ^(Arg Identifier typeRef?)
+parameter
+	: Identifier ('of' typeRef)? -> ^(Parameter Identifier typeRef?)
 	;
 
 sourceItem
@@ -137,17 +143,19 @@ multiplicative_expr : unary_expr ( ('*' | '/')^ unary_expr )* ;
 
 unary_expr : (un_op^ unary_expr | primary_expr) ;
 
-primary_expr
-	: ( braces 
-	| place 
-	| literal
-	) (function_call | array_access)*
+primary_expr 
+	: base_expr '(' (expr (',' expr)*)? ')' expr_suf? -> ^(FunctionCall base_expr ^(Args expr*) expr_suf?)
+	| base_expr '[' expr ('..' expr)? ']' expr_suf? -> ^(ArrayAccess base_expr ^(Indices expr+) expr_suf?)
+	| base_expr
 	;
 	
-function_call : '(' (expr (',' expr)*)? ')' -> ^(FunctionCall expr*);
+base_expr : braces | place | literal ;
 
-array_access : '[' expr ('..' expr)? ']' -> ^(ArrayAccess expr+);
-
+expr_suf 
+	: '(' (expr (',' expr)*)? ')' expr_suf? -> ^(FunctionCall ^(Args expr*) expr_suf?)
+	| '[' expr ('..' expr)? ']' expr_suf? -> ^(ArrayAccess ^(Indices expr+) expr_suf?)
+	;
+	
 braces : '('! expr ')'! ;
 
 place : Identifier ;

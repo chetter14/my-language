@@ -1,5 +1,5 @@
 // check function signature
-def func_sign(a of int, b of string, c of long array[10])
+def func_sign(a of int, b of string, c of long array[10], d of bool array[5]array[5]array[5]) of byte
 	x = 2;
 end
 
@@ -56,6 +56,8 @@ def foo_expr()
 	
 	y = a[1];
 	y = a[1][1];
+	
+	c = x[1] + a[2];
 	
 	z = x()[0];
 	w = b[0][0]()()[0]();
