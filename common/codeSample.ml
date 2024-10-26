@@ -62,3 +62,8 @@ def foo_expr()
 	z = x()[0];
 	w = b[0][0]()()[0]();
 end
+
+def check_logic_and_bit()
+	x = a | ~b & c ^ d;
+	y = !a && b || c;
+end

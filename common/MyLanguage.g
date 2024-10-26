@@ -129,9 +129,11 @@ expr_statement : expr ';' -> ^(ExpressionStatement expr);
 
 expr : assignment_expr;
 
-assignment_expr : logical_expr ( '='^ expr )? ;
+assignment_expr : logical_or_expr ( '='^ expr )? ;
 
-logical_expr : comparison_expr ( ('&&' | '||')^ expr)* ;
+logical_or_expr: logical_and_expr ('||'^ expr)*;
+
+logical_and_expr : comparison_expr ('&&'^ expr)* ;
 
 comparison_expr
 	: additive_expr ( ( '==' | '!=' | '<' | '>' | '<=' | '>=' )^ additive_expr )? 
@@ -139,7 +141,13 @@ comparison_expr
 
 additive_expr : multiplicative_expr ( ('+' | '-')^ multiplicative_expr )* ;
 
-multiplicative_expr : unary_expr ( ('*' | '/')^ unary_expr )* ;
+multiplicative_expr : bitwise_or_expr ( ('*' | '/' | '%')^ bitwise_or_expr )* ;
+
+bitwise_or_expr : bitwise_xor_expr ('|'^ bitwise_xor_expr)* ;
+
+bitwise_xor_expr : bitwise_and_expr ('^'^ bitwise_and_expr)* ;
+
+bitwise_and_expr : unary_expr ('&'^ unary_expr)* ;
 
 unary_expr : (un_op^ unary_expr | primary_expr) ;
 
@@ -162,4 +170,4 @@ place : Identifier ;
 
 literal: Char | Hex | Bits | Dec | Bool | Str ;
 
-un_op : '-' | '!' ;
+un_op : '-' | '!' | '~';
