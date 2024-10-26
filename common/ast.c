@@ -22,7 +22,7 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 	if (!tokenStream)
 	{
 		strcpy(errorMessage, "Failed to make a token stream");
-		cleanUpResources();
+		ASTcleanUpResources();
 		return NULL;
 	}
 
@@ -30,7 +30,7 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 	if (!parser)
 	{
 		strcpy(errorMessage, "Failed to make a parser");
-		cleanUpResources();
+		ASTcleanUpResources();
 		return NULL;
 	}
 
@@ -39,7 +39,7 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 	{
 		// errorMessage = "Failed to parse the file";
 		strcpy(errorMessage, "Failed to parse the file");
-		cleanUpResources();
+		ASTcleanUpResources();
 		return NULL;
 	}
 
@@ -54,6 +54,7 @@ bool makeDotFile(const char* outputFile, pANTLR3_BASE_TREE tree, char* errorMess
 	if (!dotFile)
 	{
 		errorMessage = "Failed to open the output file";
+		ASTcleanUpResources();
 		return false;
 	}
 
@@ -65,7 +66,7 @@ bool makeDotFile(const char* outputFile, pANTLR3_BASE_TREE tree, char* errorMess
 	return true;
 }
 
-void cleanUpResources()
+void ASTcleanUpResources()
 {
 	if (parser)
 		parser->free(parser);

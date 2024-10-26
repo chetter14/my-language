@@ -6,6 +6,6 @@
 
 pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage);
 bool makeDotFile(const char* outputFile, pANTLR3_BASE_TREE tree, char* errorMessage);
-void cleanUpResources();
+void ASTcleanUpResources();
 
 #endif
