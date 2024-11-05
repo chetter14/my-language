@@ -4,19 +4,18 @@
 #include "op-tree.h"
 
 typedef struct CfgNode {
-	CfgNode** next;			// can be more than one possible next nodes
+	CfgNode* next;			// can be more than one possible next nodes
 	OpTree* opTree;			// operations tree
 } CfgNode;
 
-typedef struct Cfg {
-	CfgNode* start;
-} Cfg;
-
 typedef struct CfgSubroutine {
 	char* name;
-	Cfg cfg;
+	CfgNode* start;
 	char* sourceFile;
-	// should parameters and return type be specified ?
 } CfgSubroutine;
+
+typedef struct Cfg {
+	CfgSubroutine* subroutines;
+} Cfg;
 
 #endif	// MY_LANG_CFG_H

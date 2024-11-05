@@ -27,5 +27,8 @@
     <ClCompile Include="..\common\MyLanguageParser.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\common\cfg.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
