@@ -4,7 +4,7 @@
 #include "op-tree.h"
 
 typedef struct CfgNode {
-	CfgNode* next;			// can be more than one possible next nodes
+	struct CfgNode* next;			// can be more than one possible next nodes
 	OpTree* opTree;			// operations tree
 } CfgNode;
 

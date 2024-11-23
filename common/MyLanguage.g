@@ -29,10 +29,11 @@ tokens
 	RepeatCondition;
 	BreakStatement;
 	ExpressionStatement;
-	Indices;
+	Index;
 	Args;
 	FunctionCall;
 	ArrayAccess;
+	Slice;
 }
 
 /*------------------------------------------------------------------
@@ -153,7 +154,7 @@ unary_expr : (un_op^ unary_expr | primary_expr) ;
 
 primary_expr 
 	: base_expr '(' (expr (',' expr)*)? ')' expr_suf? -> ^(FunctionCall base_expr ^(Args expr*) expr_suf?)
-	| base_expr '[' expr ('..' expr)? ']' expr_suf? -> ^(ArrayAccess base_expr ^(Indices expr+) expr_suf?)
+	| base_expr '[' indexing (',' indexing)* ']' expr_suf? -> ^(ArrayAccess base_expr indexing+ expr_suf?)
 	| base_expr
 	;
 	
@@ -161,7 +162,11 @@ base_expr : braces | place | literal ;
 
 expr_suf 
 	: '(' (expr (',' expr)*)? ')' expr_suf? -> ^(FunctionCall ^(Args expr*) expr_suf?)
-	| '[' expr ('..' expr)? ']' expr_suf? -> ^(ArrayAccess ^(Indices expr+) expr_suf?)
+	| '[' indexing (',' indexing)* ']' expr_suf? -> ^(ArrayAccess indexing+ expr_suf?)
+	;
+
+indexing
+	: expr ('..' expr)? -> ^(Index expr expr?)
 	;
 	
 braces : '('! expr ')'! ;

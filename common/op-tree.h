@@ -2,7 +2,7 @@
 #define MY_LANG_OP_TREE_H
 
 typedef struct ExprNode {
-	ExprNode* next;
+	struct ExprNode* next;
 	// add operands and operator
 } ExprNode;
 
