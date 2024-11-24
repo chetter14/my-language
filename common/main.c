@@ -34,5 +34,7 @@ int main(int argc, char* argv[])
 
 	ASTcleanUpResources();
 
+	printf("Building of AST completed successfully!\n");
+
 	return 0;
 }
