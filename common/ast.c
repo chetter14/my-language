@@ -9,6 +9,22 @@ static pMyLanguageLexer lexer;
 static pANTLR3_COMMON_TOKEN_STREAM tokenStream;
 static pMyLanguageParser parser;
 
+// Rotate function calls and array accesses nodes to make the tree right-recursive
+static void rotateFunctionCallsArrayAccesses(pANTLR3_BASE_TREE node)
+{
+	/*	Algorithm: (FC - function call, AA - array access)
+	* 1) Use dfs to find FCs or AAs
+	* 2) Check if the current node has one of its children a FC or AA 
+	* 3) If it has, rotate the current node and its child (FC/AA)
+	*	- set child instead of current node to the parent (node->getParent()->setChild(child))
+	*	- delete the child from current node (node->deleteChild(child))
+	*	- extract children of child, add current node to child, 
+	*		and then add extracted children to child 
+	*		(*copy children of child*, child->addChild(curNode),child->addChildren(*extracted children*))
+	* 4) Otherwise, keep doing dfs from child (because current node is considered already)
+	*/
+}
+
 pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 {
 	lexer = MyLanguageLexerNew(input);
@@ -44,6 +60,12 @@ pANTLR3_BASE_TREE getAST(pANTLR3_INPUT_STREAM input, char* errorMessage)
 	}
 
 	pANTLR3_BASE_TREE tree = result.tree;
+
+	pANTLR3_STRING text = tree->getText(tree);
+	const char* nodeText = (const char*)text->chars;
+	printf("Root node text - %s\n", nodeText);
+
+	rotateFunctionCallsArrayAccesses(tree);
 
 	return tree;
 }
