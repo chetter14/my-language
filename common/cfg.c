@@ -1,8 +1,9 @@
 #include "cfg.h"
 #include <antlr3.h>
+#include <stdlib.h>
 
 
-Cfg getCfg(char** sourceFiles, pANTLR3_BASE_TREE* sourceASTs, char* errorMessage) {
+CfgSubroutine getCfg(char** sourceFiles, pANTLR3_BASE_TREE* sourceASTs, char* errorMessage) {
 	
 	// File contains only one function
 

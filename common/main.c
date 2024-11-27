@@ -8,6 +8,8 @@
 
 int main(int argc, char* argv[])
 {
+	// Add handling of few input files: 
+
 	pANTLR3_INPUT_STREAM input = antlr3FileStreamNew((pANTLR3_UINT8)argv[1], ANTLR3_ENC_8BIT);
 	if (!input)
 	{
