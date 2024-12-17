@@ -29,7 +29,8 @@ typedef enum {
 
 typedef struct OpTreeNode {
 	OpTreeNodeType type;
-	struct OpTreeNode** next;	// there can be many next nodes
+	struct OpTreeNode* left;	
+	struct OpTreeNode* right;	
 	int numberOfNext;
 	union {
 		int number;
@@ -38,9 +39,5 @@ typedef struct OpTreeNode {
 		char* identifier;
 	} data;
 } OpTreeNode;
-
-typedef struct OpTree {
-	OpTreeNode* start;
-} OpTree;
 
 #endif	// MY_LANG_OP_TREE_H

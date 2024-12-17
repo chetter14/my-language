@@ -2,6 +2,7 @@
 #define MY_LANG_CFG_H
 
 #include "op-tree.h"
+#include "ast.h"
 
 /*
 file1:
@@ -14,6 +15,7 @@ file2:
 
 callgraph (CG):		( iterate over all the CFGs and build CallGraph )
 	f1 -> f2	( function f1() calls function f2() )
+	(if there is a call of function that is not in call graph - throw error)
 
 Every basic block in CFG has an operation tree root
 
@@ -36,6 +38,8 @@ typedef enum {
 	NODE_TYPE_REPEAT_STAT,
 	NODE_TYPE_EXPR_STAT,
 	NODE_TYPE_BREAK_STAT,
+	NODE_TYPE_START,			// as START
+	NODE_TYPE_END,				// as END
 	NODE_TYPE_EMPTY				// used as a helper node for cfg building
 } CfgNodeType;
 
@@ -43,7 +47,7 @@ typedef struct CfgNode {
 	CfgNodeType type;
 	struct CfgNode* next[2];		// there can be maximum 2 next nodes (true/false for conditions)
 	int numberOfNext;
-	OpTree* opTree;					// operations tree
+	OpTreeNode* opTree;					// operations tree
 } CfgNode;
 
 // BuiltInType:
@@ -76,6 +80,7 @@ typedef struct {
 
 // TypeRef:
 typedef enum {
+	TYPE_REF_NO_TYPE,
 	TYPE_REF_BUILT_IN_TYPE,
 	TYPE_REF_IDENTIFIER,
 	TYPE_REF_ARRAY_TYPE
@@ -105,7 +110,6 @@ typedef struct {
 
 // Subroutine:
 typedef struct CfgSubroutine {
-	char* fileName;
 	char* functionName;
 	ParameterList parameterList;
 	TypeRef returnType;
@@ -119,5 +123,7 @@ typedef struct CfgFile {
 	CfgSubroutine* headSubroutine;
 	int numberOfSubroutines;
 } CfgFile;
+
+CfgFile getCfg(char* sourceFile, pANTLR3_BASE_TREE sourceAST, char* errorMessage);
 
 #endif	// MY_LANG_CFG_H
