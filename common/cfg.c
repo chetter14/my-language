@@ -157,10 +157,35 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 	If the type is incomplete (required to have children),
 	recursively call parseOperationTree on child nodes
 	*/
-	
+	const char *elemText = (const char*)exprElemNode->getText(exprElemNode)->chars;
+	if (strcmp(elemText, "=")) {							/* Assignment */
+		opTreeNode->type = OP_TREE_NODE_TYPE_WRITE;
+
+		OpTreeNode *whereToWrite = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+		opTreeNode->left = whereToWrite;
+		parseOperationTree(whereToWrite, exprElemNode->getChild(exprElemNode, 0));
+
+		OpTreeNode *whatToWrite = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+		opTreeNode->right = whatToWrite;
+		parseOperationTree(whatToWrite, exprElemNode->getChild(exprElemNode, 1));
+
+		opTreeNode->numberOfNext = 2;
+	} else {														/* Handle not operations node */
+		if (atof(elemText) != 0.0) {			/* It's float */
+			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_FLOAT;
+			opTreeNode->data.real = atof(elemText);
+		} else if (atoi(elemText) != 0) {	/* It's integer */
+			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_INT;
+			opTreeNode->data.number = atoi(elemText);
+		} else if (elemText[0] == "\"") {			/* It's string (starts with " symbol) */
+			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_STRING;
+			opTreeNode->data.string = elemText;
+		} else {									/* Identifier */
+			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
+			opTreeNode->data.identifier = elemText;
+		}
+	}
 }
-
-
 
 CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNode)
 {
@@ -174,8 +199,10 @@ CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNo
 
 	OpTreeNode *opTree = (OpTreeNode*)malloc(sizeof(OpTreeNode));
 	parseOperationTree(opTree, exprElemNode);
-
 	exprCfgNode->opTree = opTree;
+	
+	curNode->next[0] = exprCfgNode;
+	curNode->numberOfNext = 1;
 	return exprCfgNode;
 }
 
@@ -230,7 +257,7 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 			pANTLR3_BASE_TREE baseStatementNode = statementNode->getChild(statementNode, 0);
 			const char* baseStatementString = (const char*)baseStatementNode->getText(baseStatementNode)->chars;
 			if (strcmp("ExpressionStatement", baseStatementString) == 0) {
-				parseExpressionStatement(curNode, baseStatementNode);
+				curNode = parseExpressionStatement(curNode, baseStatementNode);
 			}
 			/* Add handling of other expressions */
 		}
@@ -243,8 +270,76 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 	}
 	endNode->type = NODE_TYPE_END;
 
+	curNode->next[0] = endNode;
+	curNode->numberOfNext = 1;
+
 	cfgSubroutine->cfgStart = startNode;
 	return cfgSubroutine;
+}
+
+void printOpTree(FILE *opTreeFile, OpTreeNode *opTree)
+{
+	
+}
+
+void printCfgNode(FILE *cfgFile, CfgNode* curNode)
+{
+	if (curNode->type == NODE_TYPE_END)
+		return;		/* Reached the end */
+
+	char opTreeAddress[20];
+	if (curNode->type == NODE_TYPE_EMPTY || curNode->type == NODE_TYPE_BREAK_STAT
+		|| curNode->type == NODE_TYPE_START) {
+		;		/* No operation tree for such nodes */
+	} else {
+		/* Create op tree file with the name of address of op tree for the cur node */
+		snprintf(opTreeAddress, 8, "%p", curNode->opTree);
+		FILE* opTreeFile = fopen(opTreeAddress, "w");
+		if (!opTreeFile) {
+			printf("Failed to open %s.dot file\n", opTreeAddress);
+			return NULL;
+		}
+		printOpTree(opTreeFile, curNode->opTree);
+	}
+
+	/*
+	char str[20];
+    int x = 2;
+    snprintf(str, 20, "%p", &x);
+    printf("string is %s\n", str);
+    
+    const char *str2 = "Hello ";
+    
+    char *new_str = (char*)malloc(strlen(str) + strlen(str2) + 1);
+    new_str[0] = '\0';
+    strcat(new_str, str2);
+    strcat(new_str, str);
+    printf("new string is %s\n", new_str);
+	*/
+
+	const char *curDesc = getDescByNodeType(curNode->type);
+	strcat(curDesc, opTreeAddress);
+	for (int i = 0; i < curNode->numberOfNext; ++i) {
+		CfgNode* next = curNode->next[i];
+		char* nextDesc = getDescByNodeType(next->type);
+		fprintf(cfgFile, "\t%s -> %s;\n", curDesc, nextDesc);
+	}
+}
+
+void printCfgSubroutine(CfgSubroutine* curSubroutine)
+{
+	FILE* cfgFile = fopen("cfg.dot", "w");
+	if (!cfgFile) {
+		printf("Failed to open cfg.dot file\n");
+		return NULL;
+	}
+
+	fprintf(cfgFile, "diagraph Cfg {\n");
+
+	printCfgNode(cfgFile, curSubroutine->cfgStart);
+
+	fprintf(cfgFile, "}\n");
+	fclose(cfgFile);
 }
 
 CfgFile getCfg(char* sourceFile, pANTLR3_BASE_TREE sourceAST, char* errorMessage)
@@ -288,3 +383,4 @@ CfgFile getCfg(char* sourceFile, pANTLR3_BASE_TREE sourceAST, char* errorMessage
 	*/
 
 }
+

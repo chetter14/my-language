@@ -24,12 +24,14 @@ typedef enum {
 	OP_TREE_NODE_TYPE_ARRAY_ACCESS,
 	OP_TREE_NODE_TYPE_INDEX,
 	OP_TREE_NODE_TYPE_VALUE_PLACE,
-	OP_TREE_NODE_TYPE_VALUE
+	OP_TREE_NODE_TYPE_VALUE_INT,
+	OP_TREE_NODE_TYPE_VALUE_FLOAT,
+	OP_TREE_NODE_TYPE_VALUE_STRING
 } OpTreeNodeType;
 
 typedef struct OpTreeNode {
 	OpTreeNodeType type;
-	struct OpTreeNode* left;	
+	struct OpTreeNode* left;		// later modify to struct OpTreeNode **
 	struct OpTreeNode* right;	
 	int numberOfNext;
 	union {
