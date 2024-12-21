@@ -3,6 +3,37 @@
 #include <stdlib.h>
 #include <string.h>
 
+char* getDescByNodeType(CfgNodeType type)
+{
+	switch (type) {
+	case NODE_TYPE_IF_STAT: return "IF-ELSE";
+	case NODE_TYPE_WHILE_STAT: return "WHILE";
+	case NODE_TYPE_REPEAT_STAT: return "REPEAT UNTIL";
+	case NODE_TYPE_EXPR_STAT: return "EXPR";
+	case NODE_TYPE_BREAK_STAT: return "BREAK";
+	case NODE_TYPE_START: return "START";
+	case NODE_TYPE_END: return "END";
+	case NODE_TYPE_EMPTY: return "empty";
+	}
+}
+
+char* getDescByOpTreeNodeType(OpTreeNodeType type)
+{
+	switch (type) {
+	case OP_TREE_NODE_TYPE_WRITE: return "WRITE";
+	case OP_TREE_NODE_TYPE_READ: return "READ";
+	case OP_TREE_NODE_TYPE_LOGICAL_OR: return "LOGICAL OR";
+	case OP_TREE_NODE_TYPE_LOGICAL_AND: return "LOGICAL AND";
+	case OP_TREE_NODE_TYPE_EQUAL: return "EQUAL";
+	case OP_TREE_NODE_TYPE_NOT_EQUAL: return "NOT EQUAL";
+		/* Add the rest of op tree node types */
+	case OP_TREE_NODE_TYPE_VALUE_PLACE: return "VALUE PLACE";
+	case OP_TREE_NODE_TYPE_VALUE_INT: return "INT";
+	case OP_TREE_NODE_TYPE_VALUE_FLOAT: return "FLOAT";
+	case OP_TREE_NODE_TYPE_VALUE_STRING: return "STRING";
+	}
+}
+
 void fillArrayType(ArrayType* arrayType, pANTLR3_BASE_TREE typeNode)
 {
 	/* Get the type of elements in the array */
@@ -162,11 +193,11 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 		opTreeNode->type = OP_TREE_NODE_TYPE_WRITE;
 
 		OpTreeNode *whereToWrite = (OpTreeNode*)malloc(sizeof(OpTreeNode));
-		opTreeNode->left = whereToWrite;
+		opTreeNode->next[0] = whereToWrite;
 		parseOperationTree(whereToWrite, exprElemNode->getChild(exprElemNode, 0));
 
 		OpTreeNode *whatToWrite = (OpTreeNode*)malloc(sizeof(OpTreeNode));
-		opTreeNode->right = whatToWrite;
+		opTreeNode->next[1] = whatToWrite;
 		parseOperationTree(whatToWrite, exprElemNode->getChild(exprElemNode, 1));
 
 		opTreeNode->numberOfNext = 2;
@@ -184,6 +215,7 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
 			opTreeNode->data.identifier = elemText;
 		}
+		opTreeNode->numberOfNext = 0;
 	}
 }
 
@@ -277,9 +309,71 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 	return cfgSubroutine;
 }
 
+char* getOpTreeNodeDesc(OpTreeNode *node)
+{
+	char* nodeType = getDescByOpTreeNodeType(node->type);
+
+	char value[30];
+	if (node->type == OP_TREE_NODE_TYPE_VALUE_INT) {
+		snprintf(value, 30, "%d", node->data.number);
+	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_FLOAT) {
+		snprintf(value, 30, "%f", node->data.real);
+	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_STRING) {
+		snprintf(value, 30, "%s", node->data.string);
+	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_PLACE) {
+		snprintf(value, 30, "%s", node->data.identifier);
+	} else {
+		value[0] = "\0";
+	}
+
+	char* desc = (char*)malloc(strlen(value) + strlen(nodeType) + 2);
+	if (!desc) {
+		printf("Failed to allocate memory for description string of cfg node\n");
+		return NULL;
+	}
+	desc[0] = '\0';
+
+	strcat(desc, nodeType);
+	strcat(desc, " ");
+	strcat(desc, value);
+
+	return desc;
+}
+
 void printOpTree(FILE *opTreeFile, OpTreeNode *opTree)
 {
-	
+	char *curDesc = getOpTreeNodeDesc(opTree);
+
+	for (int i = 0; i < opTree->numberOfNext; ++i) {
+		OpTreeNode *next = opTree->next[i];
+		char *nextDesc = getOpTreeNodeDesc(next);
+		fprintf(opTreeFile, "\t\"%s\" -> \"%s\";\n", curDesc, nextDesc);
+		free(nextDesc);
+
+		printOpTree(opTreeFile, next);
+	}
+	free(curDesc);
+}
+
+char* getCfgNodeDesc(CfgNode *node)
+{
+	char opTreeAddress[20];
+	snprintf(opTreeAddress, 20, "%p", node->opTree);
+
+	char *nodeType = getDescByNodeType(node->type);
+
+	char* desc = (char*)malloc(strlen(opTreeAddress) + strlen(nodeType) + 2);
+	if (!desc) {
+		printf("Failed to allocate memory for description string of cfg node\n");
+		return NULL;
+	}
+	desc[0] = '\0';
+
+	strcat(desc, nodeType);
+	strcat(desc, " ");
+	strcat(desc, opTreeAddress);
+
+	return desc;
 }
 
 void printCfgNode(FILE *cfgFile, CfgNode* curNode)
@@ -287,43 +381,37 @@ void printCfgNode(FILE *cfgFile, CfgNode* curNode)
 	if (curNode->type == NODE_TYPE_END)
 		return;		/* Reached the end */
 
-	char opTreeAddress[20];
 	if (curNode->type == NODE_TYPE_EMPTY || curNode->type == NODE_TYPE_BREAK_STAT
 		|| curNode->type == NODE_TYPE_START) {
 		;		/* No operation tree for such nodes */
 	} else {
 		/* Create op tree file with the name of address of op tree for the cur node */
-		snprintf(opTreeAddress, 8, "%p", curNode->opTree);
+		char opTreeAddress[25];
+		snprintf(opTreeAddress, 25, "%p.dot", curNode->opTree);
 		FILE* opTreeFile = fopen(opTreeAddress, "w");
 		if (!opTreeFile) {
 			printf("Failed to open %s.dot file\n", opTreeAddress);
 			return NULL;
 		}
+		fprintf(opTreeFile, "digraph OpTree {\n");
+
 		printOpTree(opTreeFile, curNode->opTree);
+
+		fprintf(opTreeFile, "}\n");
+		fclose(opTreeFile);
 	}
 
-	/*
-	char str[20];
-    int x = 2;
-    snprintf(str, 20, "%p", &x);
-    printf("string is %s\n", str);
-    
-    const char *str2 = "Hello ";
-    
-    char *new_str = (char*)malloc(strlen(str) + strlen(str2) + 1);
-    new_str[0] = '\0';
-    strcat(new_str, str2);
-    strcat(new_str, str);
-    printf("new string is %s\n", new_str);
-	*/
+	char* curDesc = getCfgNodeDesc(curNode);
 
-	const char *curDesc = getDescByNodeType(curNode->type);
-	strcat(curDesc, opTreeAddress);
 	for (int i = 0; i < curNode->numberOfNext; ++i) {
 		CfgNode* next = curNode->next[i];
-		char* nextDesc = getDescByNodeType(next->type);
-		fprintf(cfgFile, "\t%s -> %s;\n", curDesc, nextDesc);
+		char* nextDesc = getCfgNodeDesc(next);
+		fprintf(cfgFile, "\t\"%s\" -> \"%s\";\n", curDesc, nextDesc);
+		free(nextDesc);
+
+		printCfgNode(cfgFile, next);
 	}
+	free(curDesc);
 }
 
 void printCfgSubroutine(CfgSubroutine* curSubroutine)
@@ -334,7 +422,7 @@ void printCfgSubroutine(CfgSubroutine* curSubroutine)
 		return NULL;
 	}
 
-	fprintf(cfgFile, "diagraph Cfg {\n");
+	fprintf(cfgFile, "digraph Cfg {\n");
 
 	printCfgNode(cfgFile, curSubroutine->cfgStart);
 
@@ -358,6 +446,8 @@ CfgFile getCfg(char* sourceFile, pANTLR3_BASE_TREE sourceAST, char* errorMessage
 		}
 		prevSubroutine = curSubroutine;
 	}
+
+	printCfgSubroutine(cfgFile.headSubroutine);
 
 	return cfgFile;
 

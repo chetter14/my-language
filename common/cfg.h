@@ -43,20 +43,6 @@ typedef enum {
 	NODE_TYPE_EMPTY				// used as a helper node for cfg building
 } CfgNodeType;
 
-char* getDescByNodeType(CfgNodeType type)
-{
-	switch (type) {
-	case NODE_TYPE_IF_STAT: return "IF-ELSE";
-	case NODE_TYPE_WHILE_STAT: return "WHILE";
-	case NODE_TYPE_REPEAT_STAT: return "REPEAT UNTIL";
-	case NODE_TYPE_EXPR_STAT: return "EXPR";
-	case NODE_TYPE_BREAK_STAT: return "BREAK";
-	case NODE_TYPE_START: return "START";
-	case NODE_TYPE_END: return "END";
-	case NODE_TYPE_EMPTY: return "empty";
-	}
-}
-
 typedef struct CfgNode {
 	CfgNodeType type;
 	struct CfgNode* next[2];		// there can be maximum 2 next nodes (true/false for conditions)

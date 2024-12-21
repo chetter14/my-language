@@ -40,7 +40,7 @@ int main(int argc, char* argv[])
 	/* reset message char string */
 	memset(&errorMessage[0], 0, ERROR_MSG_SIZE);
 
-	//CfgFile cfg = getCfg(argv[1], tree, errorMessage);
+	CfgFile cfg = getCfg(argv[1], tree, errorMessage);
 
 	ASTcleanUpResources();
 

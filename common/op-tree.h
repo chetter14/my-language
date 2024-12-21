@@ -31,8 +31,7 @@ typedef enum {
 
 typedef struct OpTreeNode {
 	OpTreeNodeType type;
-	struct OpTreeNode* left;		// later modify to struct OpTreeNode **
-	struct OpTreeNode* right;	
+	struct OpTreeNode* next[2];		// later modify to struct OpTreeNode **
 	int numberOfNext;
 	union {
 		int number;
