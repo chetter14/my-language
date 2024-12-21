@@ -189,7 +189,7 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 	recursively call parseOperationTree on child nodes
 	*/
 	const char *elemText = (const char*)exprElemNode->getText(exprElemNode)->chars;
-	if (strcmp(elemText, "=")) {							/* Assignment */
+	if (elemText[0] == '=') {							/* Assignment */
 		opTreeNode->type = OP_TREE_NODE_TYPE_WRITE;
 
 		OpTreeNode *whereToWrite = (OpTreeNode*)malloc(sizeof(OpTreeNode));
@@ -323,7 +323,7 @@ char* getOpTreeNodeDesc(OpTreeNode *node)
 	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_PLACE) {
 		snprintf(value, 30, "%s", node->data.identifier);
 	} else {
-		value[0] = "\0";
+		value[0] = '\0';
 	}
 
 	char* desc = (char*)malloc(strlen(value) + strlen(nodeType) + 2);
@@ -335,8 +335,10 @@ char* getOpTreeNodeDesc(OpTreeNode *node)
 
 	strcat(desc, nodeType);
 	strcat(desc, " ");
-	strcat(desc, value);
-
+	if (value[0] != '\0') {		/* If there is some value */
+		strcat(desc, value);
+	}
+	
 	return desc;
 }
 
@@ -355,12 +357,12 @@ void printOpTree(FILE *opTreeFile, OpTreeNode *opTree)
 	free(curDesc);
 }
 
-char* getCfgNodeDesc(CfgNode *node)
+char* getCfgNodeDesc(CfgNode* node)
 {
 	char opTreeAddress[20];
 	snprintf(opTreeAddress, 20, "%p", node->opTree);
 
-	char *nodeType = getDescByNodeType(node->type);
+	char* nodeType = getDescByNodeType(node->type);
 
 	char* desc = (char*)malloc(strlen(opTreeAddress) + strlen(nodeType) + 2);
 	if (!desc) {
@@ -371,7 +373,10 @@ char* getCfgNodeDesc(CfgNode *node)
 
 	strcat(desc, nodeType);
 	strcat(desc, " ");
-	strcat(desc, opTreeAddress);
+	if (node->type != NODE_TYPE_BREAK_STAT && node->type != NODE_TYPE_EMPTY
+		&& node->type != NODE_TYPE_START && node->type != NODE_TYPE_END) {
+		strcat(desc, opTreeAddress);
+	}
 
 	return desc;
 }
