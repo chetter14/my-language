@@ -20,6 +20,9 @@ typedef enum {
 	OP_TREE_NODE_TYPE_BIT_OR,
 	OP_TREE_NODE_TYPE_BIT_XOR,
 	OP_TREE_NODE_TYPE_BIT_AND,
+	OP_TREE_NODE_TYPE_UNARY_MINUS,
+	OP_TREE_NODE_TYPE_UNARY_LOGICAL_NOT,
+	OP_TREE_NODE_TYPE_UNARY_BIT_NOT,
 	OP_TREE_NODE_TYPE_FUNCTION_CALL,
 	OP_TREE_NODE_TYPE_ARRAY_ACCESS,
 	OP_TREE_NODE_TYPE_INDEX,
@@ -33,6 +36,7 @@ typedef struct OpTreeNode {
 	OpTreeNodeType type;
 	struct OpTreeNode* next[2];		// later modify to struct OpTreeNode **
 	int numberOfNext;
+	int id;
 	union {
 		int number;
 		float real;

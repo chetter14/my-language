@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int cfgNodeCounter = 1;
+static int opTreeNodeCounter = 1;
+
 char* getDescByNodeType(CfgNodeType type)
 {
 	switch (type) {
@@ -22,11 +25,25 @@ char* getDescByOpTreeNodeType(OpTreeNodeType type)
 	switch (type) {
 	case OP_TREE_NODE_TYPE_WRITE: return "WRITE";
 	case OP_TREE_NODE_TYPE_READ: return "READ";
+	case OP_TREE_NODE_TYPE_ADDITION: return "ADD";
+	case OP_TREE_NODE_TYPE_SUBTRACTION: return "SUB";
+	case OP_TREE_NODE_TYPE_MULTIPLICATION: return "MUL";
+	case OP_TREE_NODE_TYPE_DIVISION: return "DIV";
+	case OP_TREE_NODE_TYPE_REMAINDER: return "REM";
 	case OP_TREE_NODE_TYPE_LOGICAL_OR: return "LOGICAL OR";
 	case OP_TREE_NODE_TYPE_LOGICAL_AND: return "LOGICAL AND";
 	case OP_TREE_NODE_TYPE_EQUAL: return "EQUAL";
 	case OP_TREE_NODE_TYPE_NOT_EQUAL: return "NOT EQUAL";
-		/* Add the rest of op tree node types */
+	case OP_TREE_NODE_TYPE_LESS: return "LESS";
+	case OP_TREE_NODE_TYPE_GREATER: return "GREATER";
+	case OP_TREE_NODE_TYPE_LESS_EQUAL: return "LESS OR EQUAL";
+	case OP_TREE_NODE_TYPE_GREATER_EQUAL: return "GREATER OR EQUAL";
+	case OP_TREE_NODE_TYPE_BIT_XOR: return "BITWISE XOR";
+	case OP_TREE_NODE_TYPE_BIT_OR: return "BITWISE OR";
+	case OP_TREE_NODE_TYPE_BIT_AND: return "BITWISE AND";
+	case OP_TREE_NODE_TYPE_UNARY_MINUS: return "UNARY MINUS";
+	case OP_TREE_NODE_TYPE_UNARY_LOGICAL_NOT: return "LOGICAL NOT";
+	case OP_TREE_NODE_TYPE_UNARY_BIT_NOT: return "BITWISE NOT";
 	case OP_TREE_NODE_TYPE_VALUE_PLACE: return "VALUE PLACE";
 	case OP_TREE_NODE_TYPE_VALUE_INT: return "INT";
 	case OP_TREE_NODE_TYPE_VALUE_FLOAT: return "FLOAT";
@@ -188,34 +205,114 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 	If the type is incomplete (required to have children),
 	recursively call parseOperationTree on child nodes
 	*/
+
+	opTreeNode->id = opTreeNodeCounter;
+	++opTreeNodeCounter;
+
 	const char *elemText = (const char*)exprElemNode->getText(exprElemNode)->chars;
-	if (elemText[0] == '=') {							/* Assignment */
+	if (strcmp(elemText, "==") == 0)			/* Equal */
+		opTreeNode->type = OP_TREE_NODE_TYPE_EQUAL;
+	else if (elemText[0] == '=')						/* Assignment */
 		opTreeNode->type = OP_TREE_NODE_TYPE_WRITE;
+	else if (elemText[0] == '+')						/* Addition */
+		opTreeNode->type = OP_TREE_NODE_TYPE_ADDITION;
+	else if (elemText[0] == '-') {
+		if (exprElemNode->getChildCount(exprElemNode) == 2) /* Subtraction */
+			opTreeNode->type = OP_TREE_NODE_TYPE_SUBTRACTION;
+		else												/* Unary Minus */
+			opTreeNode->type = OP_TREE_NODE_TYPE_UNARY_MINUS;
+	}
+	else if (elemText[0] == '*')					/* Multiplication */
+		opTreeNode->type = OP_TREE_NODE_TYPE_MULTIPLICATION;
+	else if (elemText[0] == '/')					/* Division */
+		opTreeNode->type = OP_TREE_NODE_TYPE_DIVISION;
+	else if (elemText[0] == '%')					/* Remainder */
+		opTreeNode->type = OP_TREE_NODE_TYPE_REMAINDER;
+	else if (strcmp(elemText, "&&") == 0)	/* Logical AND */
+		opTreeNode->type = OP_TREE_NODE_TYPE_LOGICAL_AND;
+	else if (strcmp(elemText, "||") == 0)	/* Logical OR */
+		opTreeNode->type = OP_TREE_NODE_TYPE_LOGICAL_OR;
+	else if (strcmp(elemText, "!=") == 0)	/* Not equal */
+		opTreeNode->type = OP_TREE_NODE_TYPE_NOT_EQUAL;
+	else if (strcmp(elemText, "<=") == 0)	/* Less or Equal */
+		opTreeNode->type = OP_TREE_NODE_TYPE_LESS_EQUAL;
+	else if (strcmp(elemText, ">=") == 0)	/* Greater or Equal */
+		opTreeNode->type = OP_TREE_NODE_TYPE_GREATER_EQUAL;
+	else if (elemText[0] == '<')						/* Less */
+		opTreeNode->type = OP_TREE_NODE_TYPE_LESS;
+	else if (elemText[0] == '>')						/* Greater */
+		opTreeNode->type = OP_TREE_NODE_TYPE_GREATER;
+	else if (elemText[0] == '|')						/* Bitwise OR */
+		opTreeNode->type = OP_TREE_NODE_TYPE_BIT_OR;
+	else if (elemText[0] == '^')						/* Bitwise XOR */
+		opTreeNode->type = OP_TREE_NODE_TYPE_BIT_XOR;
+	else if (elemText[0] == '&')						/* Bitwise AND */
+		opTreeNode->type = OP_TREE_NODE_TYPE_BIT_AND;
+	else if (elemText[0] == '!')						/* Logical NOT */
+		opTreeNode->type = OP_TREE_NODE_TYPE_UNARY_LOGICAL_NOT;
+	else if (elemText[0] == '~')						/* Bitwise NOT */
+		opTreeNode->type = OP_TREE_NODE_TYPE_UNARY_BIT_NOT;
 
-		OpTreeNode *whereToWrite = (OpTreeNode*)malloc(sizeof(OpTreeNode));
-		opTreeNode->next[0] = whereToWrite;
-		parseOperationTree(whereToWrite, exprElemNode->getChild(exprElemNode, 0));
+	switch (opTreeNode->type) {
+		case OP_TREE_NODE_TYPE_WRITE:
+		case OP_TREE_NODE_TYPE_ADDITION:
+		case OP_TREE_NODE_TYPE_SUBTRACTION:
+		case OP_TREE_NODE_TYPE_MULTIPLICATION:
+		case OP_TREE_NODE_TYPE_DIVISION:
+		case OP_TREE_NODE_TYPE_REMAINDER:
+		case OP_TREE_NODE_TYPE_LOGICAL_AND:
+		case OP_TREE_NODE_TYPE_LOGICAL_OR:
+		case OP_TREE_NODE_TYPE_EQUAL:
+		case OP_TREE_NODE_TYPE_NOT_EQUAL:
+		case OP_TREE_NODE_TYPE_LESS:
+		case OP_TREE_NODE_TYPE_GREATER:
+		case OP_TREE_NODE_TYPE_LESS_EQUAL:
+		case OP_TREE_NODE_TYPE_GREATER_EQUAL:
+		case OP_TREE_NODE_TYPE_BIT_OR:
+		case OP_TREE_NODE_TYPE_BIT_XOR:
+		case OP_TREE_NODE_TYPE_BIT_AND:
+		{
+			opTreeNode->numberOfNext = 2;
+			
+			OpTreeNode* operand1 = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+			opTreeNode->next[0] = operand1;
+			parseOperationTree(operand1, exprElemNode->getChild(exprElemNode, 0));
 
-		OpTreeNode *whatToWrite = (OpTreeNode*)malloc(sizeof(OpTreeNode));
-		opTreeNode->next[1] = whatToWrite;
-		parseOperationTree(whatToWrite, exprElemNode->getChild(exprElemNode, 1));
-
-		opTreeNode->numberOfNext = 2;
-	} else {														/* Handle not operations node */
-		if (atof(elemText) != 0.0) {			/* It's float */
-			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_FLOAT;
-			opTreeNode->data.real = atof(elemText);
-		} else if (atoi(elemText) != 0) {	/* It's integer */
-			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_INT;
-			opTreeNode->data.number = atoi(elemText);
-		} else if (elemText[0] == "\"") {			/* It's string (starts with " symbol) */
-			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_STRING;
-			opTreeNode->data.string = elemText;
-		} else {									/* Identifier */
-			opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
-			opTreeNode->data.identifier = elemText;
+			OpTreeNode* operand2 = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+			opTreeNode->next[1] = operand2;
+			parseOperationTree(operand2, exprElemNode->getChild(exprElemNode, 1));
+			break;
 		}
-		opTreeNode->numberOfNext = 0;
+		case OP_TREE_NODE_TYPE_UNARY_MINUS:
+		case OP_TREE_NODE_TYPE_UNARY_LOGICAL_NOT:
+		case OP_TREE_NODE_TYPE_UNARY_BIT_NOT:
+		{
+			opTreeNode->numberOfNext = 1;
+
+			OpTreeNode* operand = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+			opTreeNode->next[0] = operand;
+			parseOperationTree(operand, exprElemNode->getChild(exprElemNode, 0));
+			break;
+		}
+		default: {															/* Handle not operations node */
+			if (atoi(elemText) != 0) {			/* It's integer */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_INT;
+				opTreeNode->data.number = atoi(elemText);
+			}
+			else if (atof(elemText) != 0.0) {	/* It's float */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_FLOAT;
+				opTreeNode->data.real = atof(elemText);
+			}
+			else if (elemText[0] == "\"") {			/* It's string (starts with " symbol) */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_STRING;
+				opTreeNode->data.string = elemText;
+			}
+			else {									/* Identifier */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
+				opTreeNode->data.identifier = elemText;
+			}
+			opTreeNode->numberOfNext = 0;
+		}
 	}
 }
 
@@ -235,6 +332,9 @@ CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNo
 	
 	curNode->next[0] = exprCfgNode;
 	curNode->numberOfNext = 1;
+	curNode->id = cfgNodeCounter;
+
+	++cfgNodeCounter;
 	return exprCfgNode;
 }
 
@@ -304,6 +404,9 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 
 	curNode->next[0] = endNode;
 	curNode->numberOfNext = 1;
+	curNode->id = cfgNodeCounter++;
+
+	endNode->id = cfgNodeCounter;
 
 	cfgSubroutine->cfgStart = startNode;
 	return cfgSubroutine;
@@ -311,6 +414,8 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 
 char* getOpTreeNodeDesc(OpTreeNode *node)
 {
+	const int opTreeNodeMaxDigits = 10;
+
 	char* nodeType = getDescByOpTreeNodeType(node->type);
 
 	char value[30];
@@ -326,7 +431,7 @@ char* getOpTreeNodeDesc(OpTreeNode *node)
 		value[0] = '\0';
 	}
 
-	char* desc = (char*)malloc(strlen(value) + strlen(nodeType) + 2);
+	char* desc = (char*)malloc(strlen(value) + strlen(nodeType) + 2 + opTreeNodeMaxDigits);
 	if (!desc) {
 		printf("Failed to allocate memory for description string of cfg node\n");
 		return NULL;
@@ -338,6 +443,11 @@ char* getOpTreeNodeDesc(OpTreeNode *node)
 	if (value[0] != '\0') {		/* If there is some value */
 		strcat(desc, value);
 	}
+
+	char opTreeNodeCounterStr[10];
+	snprintf(opTreeNodeCounterStr, 10, "%d", node->id);
+	strcat(desc, " ");
+	strcat(desc, opTreeNodeCounterStr);
 	
 	return desc;
 }
@@ -359,12 +469,14 @@ void printOpTree(FILE *opTreeFile, OpTreeNode *opTree)
 
 char* getCfgNodeDesc(CfgNode* node)
 {
+	const int cfgNodeMaxDigits = 10;
+
 	char opTreeAddress[20];
 	snprintf(opTreeAddress, 20, "%p", node->opTree);
 
 	char* nodeType = getDescByNodeType(node->type);
 
-	char* desc = (char*)malloc(strlen(opTreeAddress) + strlen(nodeType) + 2);
+	char* desc = (char*)malloc(strlen(opTreeAddress) + strlen(nodeType) + 2 + cfgNodeMaxDigits);
 	if (!desc) {
 		printf("Failed to allocate memory for description string of cfg node\n");
 		return NULL;
@@ -377,6 +489,11 @@ char* getCfgNodeDesc(CfgNode* node)
 		&& node->type != NODE_TYPE_START && node->type != NODE_TYPE_END) {
 		strcat(desc, opTreeAddress);
 	}
+
+	char cfgNodeCounterStr[10];
+	snprintf(cfgNodeCounterStr, 10, "%d", node->id);
+	strcat(desc, " ");
+	strcat(desc, cfgNodeCounterStr);
 
 	return desc;
 }
