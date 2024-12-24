@@ -6,10 +6,21 @@
 static int cfgNodeCounter = 1;
 static int opTreeNodeCounter = 1;
 
+void addChild(CfgNode* curNode, CfgNode* child)
+{
+	curNode->next[curNode->numberOfNext] = child;
+	curNode->numberOfNext++;
+}
+
+void assignId(CfgNode* curNode)
+{
+	curNode->id = cfgNodeCounter++;
+}
+
 char* getDescByNodeType(CfgNodeType type)
 {
 	switch (type) {
-	case NODE_TYPE_IF_STAT: return "IF-ELSE";
+	case NODE_TYPE_IF_STAT: return "IF-ELSE COND";
 	case NODE_TYPE_WHILE_STAT: return "WHILE";
 	case NODE_TYPE_REPEAT_STAT: return "REPEAT UNTIL";
 	case NODE_TYPE_EXPR_STAT: return "EXPR";
@@ -156,7 +167,7 @@ void fillTypeRef(TypeRef *typeRef, pANTLR3_BASE_TREE typeRefNode)
 
 Parameter *getParameter(pANTLR3_BASE_TREE parameterNode)
 {
-	Parameter* parameter = (Parameter*)malloc(sizeof(Parameter));
+	Parameter* parameter = (Parameter*)calloc(1, sizeof(Parameter));
 	if (!parameter) {
 		printf("Failed to allocate memory for parameter object\n");
 		return NULL;
@@ -252,6 +263,8 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 		opTreeNode->type = OP_TREE_NODE_TYPE_UNARY_LOGICAL_NOT;
 	else if (elemText[0] == '~')						/* Bitwise NOT */
 		opTreeNode->type = OP_TREE_NODE_TYPE_UNARY_BIT_NOT;
+	else
+		opTreeNode->type = OP_TREE_NODE_TYPE_VALUE;
 
 	switch (opTreeNode->type) {
 		case OP_TREE_NODE_TYPE_WRITE:
@@ -274,11 +287,11 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 		{
 			opTreeNode->numberOfNext = 2;
 			
-			OpTreeNode* operand1 = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+			OpTreeNode* operand1 = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[0] = operand1;
 			parseOperationTree(operand1, exprElemNode->getChild(exprElemNode, 0));
 
-			OpTreeNode* operand2 = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+			OpTreeNode* operand2 = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[1] = operand2;
 			parseOperationTree(operand2, exprElemNode->getChild(exprElemNode, 1));
 			break;
@@ -289,7 +302,7 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 		{
 			opTreeNode->numberOfNext = 1;
 
-			OpTreeNode* operand = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+			OpTreeNode* operand = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[0] = operand;
 			parseOperationTree(operand, exprElemNode->getChild(exprElemNode, 0));
 			break;
@@ -311,36 +324,149 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
 				opTreeNode->data.identifier = elemText;
 			}
+			/* !!! Add handling of bit, hex, boolean, and char literals !!! */
 			opTreeNode->numberOfNext = 0;
 		}
 	}
 }
 
+CfgNode* parseStatements(CfgNode* curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements);
+
 CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNode)
 {
 	pANTLR3_BASE_TREE exprElemNode = exprStatNode->getChild(exprStatNode, 0);
-	CfgNode *exprCfgNode = (CfgNode*)malloc(sizeof(CfgNode));
+	CfgNode *exprCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
 	if (!exprCfgNode) {
 		printf("Failed to allocate memory for expression cfg node object\n");
 		return NULL;
 	}
 	exprCfgNode->type = NODE_TYPE_EXPR_STAT;
 
-	OpTreeNode *opTree = (OpTreeNode*)malloc(sizeof(OpTreeNode));
+	OpTreeNode *opTree = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 	parseOperationTree(opTree, exprElemNode);
 	exprCfgNode->opTree = opTree;
 	
-	curNode->next[0] = exprCfgNode;
-	curNode->numberOfNext = 1;
-	curNode->id = cfgNodeCounter;
+	addChild(curNode, exprCfgNode);
+	assignId(curNode);
 
-	++cfgNodeCounter;
+	//curNode->next[0] = exprCfgNode;
+	//curNode->numberOfNext = 1;
+	//curNode->id = cfgNodeCounter;
+
+	//++cfgNodeCounter;
+
 	return exprCfgNode;
+}
+
+CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode)
+{
+	/* Parse condition node and its operation tree */
+	pANTLR3_BASE_TREE conditionNode = ifStatNode->getChild(ifStatNode, 0);
+	CfgNode* condCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!condCfgNode) {
+		printf("Failed to allocate memory for if statement cfg node object\n");
+		return NULL;
+	}
+	condCfgNode->type = NODE_TYPE_IF_STAT;
+
+	OpTreeNode* condOpTree = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+	parseOperationTree(condOpTree, conditionNode->getChild(conditionNode, 0));
+	condCfgNode->opTree = condOpTree;
+
+	addChild(curNode, condCfgNode);
+	assignId(curNode);
+
+	//curNode->next[0] = condCfgNode;
+	//curNode->numberOfNext = 1;
+	//curNode->id = cfgNodeCounter++;
+	
+	/* Parse "then" clause of if statement */
+	pANTLR3_BASE_TREE thenNode = ifStatNode->getChild(ifStatNode, 1);
+	CfgNode* thenCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!thenCfgNode) {
+		printf("Failed to allocate memory for \"then\" clause of if statement cfg node object \n");
+		return NULL;
+	}
+	thenCfgNode->type = NODE_TYPE_EMPTY;
+
+	addChild(condCfgNode, thenCfgNode);
+	assignId(condCfgNode);
+
+	//condCfgNode->next[0] = thenCfgNode;
+	//condCfgNode->numberOfNext = 1;
+	//condCfgNode->id = cfgNodeCounter++;
+
+	CfgNode* lastThenCfgNode = parseStatements(thenCfgNode, thenNode, 0, thenNode->getChildCount(thenNode));
+	
+	/* Parse "else" clause if it exists */
+	CfgNode *lastElseCfgNode = NULL;
+	if (ifStatNode->getChildCount(ifStatNode) == 3) {
+		pANTLR3_BASE_TREE elseNode = ifStatNode->getChild(ifStatNode, 2);
+		CfgNode* elseCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+		if (!elseCfgNode) {
+			printf("Failed to allocate memory for \"else\" clause of if statement cfg node object \n");
+			return NULL;
+		}
+		elseCfgNode->type = NODE_TYPE_EMPTY;
+
+		addChild(condCfgNode, elseCfgNode);
+
+		//condCfgNode->next[1] = elseCfgNode;
+		//condCfgNode->numberOfNext++;
+
+		lastElseCfgNode = parseStatements(elseCfgNode, elseNode, 0, elseNode->getChildCount(elseNode));
+	}
+
+	/* Create an empty node that is the end of "then" and "else" clauses */
+	CfgNode* endIfNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!endIfNode) {
+		printf("Failed to allocate memory for the cfg node object of the end of 'if statement'\n");
+		return NULL;
+	}
+	endIfNode->type = NODE_TYPE_EMPTY;
+
+	addChild(lastThenCfgNode, endIfNode);
+	assignId(lastThenCfgNode);
+
+	//lastThenCfgNode->next[0] = endIfNode;
+	//lastThenCfgNode->numberOfNext = 1;
+	//lastThenCfgNode->id = cfgNodeCounter++;
+
+	if (lastElseCfgNode) {
+		addChild(lastElseCfgNode, endIfNode);
+		assignId(lastElseCfgNode);
+		//lastElseCfgNode->next[0] = endIfNode;
+		//lastElseCfgNode->numberOfNext = 1;
+		//lastElseCfgNode->id = cfgNodeCounter++;
+	}
+
+	return endIfNode;
+}
+
+CfgNode* parseStatements(CfgNode *curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements)
+{
+	for (int i = startIndex; i < startIndex + numberOfStatements; ++i) {
+		pANTLR3_BASE_TREE statementNode = baseNode->getChild(baseNode, i);
+		if (statementNode->getChildCount(statementNode) == 2) {		/* repeat-until loop */
+			;		/* to handle */
+		}
+		else {
+			pANTLR3_BASE_TREE baseStatementNode = statementNode->getChild(statementNode, 0);
+			const char* baseStatementString = (const char*)baseStatementNode->getText(baseStatementNode)->chars;
+			if (strcmp("ExpressionStatement", baseStatementString) == 0) {
+				curNode = parseExpressionStatement(curNode, baseStatementNode);
+			} else if (strcmp("IfStatement", baseStatementString) == 0) {
+				curNode = parseIfStatement(curNode, baseStatementNode);
+			}
+			/* Add handling of other expressions */
+		}
+	}
+	return curNode;
 }
 
 CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 {
-	CfgSubroutine* cfgSubroutine = (CfgSubroutine*)malloc(sizeof(CfgSubroutine));
+	CfgSubroutine* cfgSubroutine = (CfgSubroutine*)calloc(1, sizeof(CfgSubroutine));
 	if (!cfgSubroutine) {
 		printf("Failed to allocate memory for cfg subroutine object\n");
 		return NULL;
@@ -371,42 +497,30 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 	}
 
 	/* Build a CFG of the body of function */
-	CfgNode* startNode = (CfgNode*)malloc(sizeof(CfgNode));
+	CfgNode* startNode = (CfgNode*)calloc(1, sizeof(CfgNode));
 	if (!startNode) {
 		printf("Failed to allocate memory for cfg node object\n");
 		return NULL;
 	}
 	startNode->type = NODE_TYPE_START;
+		
+	CfgNode* curNode = parseStatements(startNode, functionNode, 1, functionNode->getChildCount(functionNode) - 1);
 
-	CfgNode *curNode = startNode;
-
-	int numberOfStatements = functionNode->getChildCount(functionNode) - 1;
-	for (int i = 1; i < numberOfStatements + 1; ++i) {
-		pANTLR3_BASE_TREE statementNode = functionNode->getChild(functionNode, i);
-		if (statementNode->getChildCount(statementNode) == 2) {		/* repeat-until loop */
-			;		/* to handle */
-		} else {
-			pANTLR3_BASE_TREE baseStatementNode = statementNode->getChild(statementNode, 0);
-			const char* baseStatementString = (const char*)baseStatementNode->getText(baseStatementNode)->chars;
-			if (strcmp("ExpressionStatement", baseStatementString) == 0) {
-				curNode = parseExpressionStatement(curNode, baseStatementNode);
-			}
-			/* Add handling of other expressions */
-		}
-	}
-	
-	CfgNode *endNode = (CfgNode*)malloc(sizeof(CfgNode));
+	CfgNode *endNode = (CfgNode*)calloc(1, sizeof(CfgNode));
 	if (!endNode) {
 		printf("Failed to allocate memory for cfg node object\n");
 		return NULL;
 	}
 	endNode->type = NODE_TYPE_END;
 
-	curNode->next[0] = endNode;
-	curNode->numberOfNext = 1;
-	curNode->id = cfgNodeCounter++;
+	addChild(curNode, endNode);
+	assignId(curNode);
+	//curNode->next[0] = endNode;
+	//curNode->numberOfNext = 1;
+	//curNode->id = cfgNodeCounter++;
 
-	endNode->id = cfgNodeCounter;
+	assignId(endNode);
+	//endNode->id = cfgNodeCounter;
 
 	cfgSubroutine->cfgStart = startNode;
 	return cfgSubroutine;
@@ -431,7 +545,7 @@ char* getOpTreeNodeDesc(OpTreeNode *node)
 		value[0] = '\0';
 	}
 
-	char* desc = (char*)malloc(strlen(value) + strlen(nodeType) + 2 + opTreeNodeMaxDigits);
+	char* desc = (char*)calloc(1, strlen(value) + strlen(nodeType) + 2 + opTreeNodeMaxDigits);
 	if (!desc) {
 		printf("Failed to allocate memory for description string of cfg node\n");
 		return NULL;
@@ -442,11 +556,11 @@ char* getOpTreeNodeDesc(OpTreeNode *node)
 	strcat(desc, " ");
 	if (value[0] != '\0') {		/* If there is some value */
 		strcat(desc, value);
+		strcat(desc, " ");
 	}
 
 	char opTreeNodeCounterStr[10];
 	snprintf(opTreeNodeCounterStr, 10, "%d", node->id);
-	strcat(desc, " ");
 	strcat(desc, opTreeNodeCounterStr);
 	
 	return desc;
@@ -459,7 +573,7 @@ void printOpTree(FILE *opTreeFile, OpTreeNode *opTree)
 	for (int i = 0; i < opTree->numberOfNext; ++i) {
 		OpTreeNode *next = opTree->next[i];
 		char *nextDesc = getOpTreeNodeDesc(next);
-		fprintf(opTreeFile, "\t\"%s\" -> \"%s\";\n", curDesc, nextDesc);
+		fprintf(opTreeFile, "\t\"%s\" -> \"%s\" [label=\"%d\"];\n", curDesc, nextDesc, i);
 		free(nextDesc);
 
 		printOpTree(opTreeFile, next);
@@ -471,12 +585,9 @@ char* getCfgNodeDesc(CfgNode* node)
 {
 	const int cfgNodeMaxDigits = 10;
 
-	char opTreeAddress[20];
-	snprintf(opTreeAddress, 20, "%p", node->opTree);
-
 	char* nodeType = getDescByNodeType(node->type);
 
-	char* desc = (char*)malloc(strlen(opTreeAddress) + strlen(nodeType) + 2 + cfgNodeMaxDigits);
+	char* desc = (char*)calloc(1, strlen(nodeType) + 2 + cfgNodeMaxDigits);
 	if (!desc) {
 		printf("Failed to allocate memory for description string of cfg node\n");
 		return NULL;
@@ -485,14 +596,9 @@ char* getCfgNodeDesc(CfgNode* node)
 
 	strcat(desc, nodeType);
 	strcat(desc, " ");
-	if (node->type != NODE_TYPE_BREAK_STAT && node->type != NODE_TYPE_EMPTY
-		&& node->type != NODE_TYPE_START && node->type != NODE_TYPE_END) {
-		strcat(desc, opTreeAddress);
-	}
 
 	char cfgNodeCounterStr[10];
 	snprintf(cfgNodeCounterStr, 10, "%d", node->id);
-	strcat(desc, " ");
 	strcat(desc, cfgNodeCounterStr);
 
 	return desc;
@@ -500,35 +606,33 @@ char* getCfgNodeDesc(CfgNode* node)
 
 void printCfgNode(FILE *cfgFile, CfgNode* curNode)
 {
+	if (curNode->isVisited) return;		/* Already were here */
+	curNode->isVisited = true;
+
 	if (curNode->type == NODE_TYPE_END)
 		return;		/* Reached the end */
+
+	char* curDesc = getCfgNodeDesc(curNode);
 
 	if (curNode->type == NODE_TYPE_EMPTY || curNode->type == NODE_TYPE_BREAK_STAT
 		|| curNode->type == NODE_TYPE_START) {
 		;		/* No operation tree for such nodes */
 	} else {
-		/* Create op tree file with the name of address of op tree for the cur node */
-		char opTreeAddress[25];
-		snprintf(opTreeAddress, 25, "%p.dot", curNode->opTree);
-		FILE* opTreeFile = fopen(opTreeAddress, "w");
-		if (!opTreeFile) {
-			printf("Failed to open %s.dot file\n", opTreeAddress);
-			return NULL;
-		}
-		fprintf(opTreeFile, "digraph OpTree {\n");
+		/* Print out the link from cfg node to operation tree */
+		char* curOpTreeDesc = getOpTreeNodeDesc(curNode->opTree);
+		fprintf(cfgFile, "\t\"%s\"[style=filled, fillcolor=yellow];\n", curDesc);
+		fprintf(cfgFile, "\t\"%s\" -> \"%s\";\n", curDesc, curOpTreeDesc);
+		free(curOpTreeDesc);
 
-		printOpTree(opTreeFile, curNode->opTree);
-
-		fprintf(opTreeFile, "}\n");
-		fclose(opTreeFile);
+		printOpTree(cfgFile, curNode->opTree);
 	}
-
-	char* curDesc = getCfgNodeDesc(curNode);
 
 	for (int i = 0; i < curNode->numberOfNext; ++i) {
 		CfgNode* next = curNode->next[i];
 		char* nextDesc = getCfgNodeDesc(next);
-		fprintf(cfgFile, "\t\"%s\" -> \"%s\";\n", curDesc, nextDesc);
+		fprintf(cfgFile, "\t\"%s\"[style=filled, fillcolor=yellow];\n", curDesc);
+		fprintf(cfgFile, "\t\"%s\"[style=filled, fillcolor=yellow];\n", nextDesc);
+		fprintf(cfgFile, "\t\"%s\" -> \"%s\" [label=\"%d\"];\n", curDesc, nextDesc, i);
 		free(nextDesc);
 
 		printCfgNode(cfgFile, next);
@@ -570,6 +674,7 @@ CfgFile getCfg(char* sourceFile, pANTLR3_BASE_TREE sourceAST, char* errorMessage
 	}
 
 	printCfgSubroutine(cfgFile.headSubroutine);
+	printf("Printed out the cfg of subroutine - %s\n", cfgFile.headSubroutine->functionName);
 
 	return cfgFile;
 

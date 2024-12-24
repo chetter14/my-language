@@ -48,7 +48,8 @@ typedef struct CfgNode {
 	struct CfgNode* next[2];		// there can be maximum 2 next nodes (true/false for conditions)
 	int numberOfNext;
 	OpTreeNode* opTree;					// operations tree
-	int id;
+	int id;							/* for printing out */
+	bool isVisited;					/* for prints as well */
 } CfgNode;
 
 // BuiltInType:
