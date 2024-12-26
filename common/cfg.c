@@ -480,24 +480,89 @@ CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
 	return outsideWhileNode;
 }
 
+CfgNode* parseBlockStatement(CfgNode* curNode, pANTLR3_BASE_TREE blockStatNode)
+{
+	return parseStatements(curNode, blockStatNode, 0, blockStatNode->getChildCount(blockStatNode));
+}
+
+CfgNode* parseSimpleStatement(CfgNode* curNode, pANTLR3_BASE_TREE simpleStatNode)
+{
+	const char* baseStatementString = (const char*)simpleStatNode->getText(simpleStatNode)->chars;
+	if (strcmp("ExpressionStatement", baseStatementString) == 0) {
+		curNode = parseExpressionStatement(curNode, simpleStatNode);
+	}
+	else if (strcmp("IfStatement", baseStatementString) == 0) {
+		curNode = parseIfStatement(curNode, simpleStatNode);
+	}
+	else if (strcmp("WhileStatement", baseStatementString) == 0) {
+		curNode = parseWhileStatement(curNode, simpleStatNode);
+	}
+	else if (strcmp("BlockStatement", baseStatementString) == 0) {
+		curNode = parseBlockStatement(curNode, simpleStatNode);
+	}
+	return curNode;
+}
+
+CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode, pANTLR3_BASE_TREE repeatCondNode)
+{
+	/* Create an empty node that is the start of repeat statement */
+	CfgNode* startRepeatNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!startRepeatNode) {
+		printf("Failed to allocate memory for the cfg node object of the start of 'repeat statement'\n");
+		return NULL;
+	}
+	startRepeatNode->type = NODE_TYPE_EMPTY;
+
+	addChild(curNode, startRepeatNode);
+	assignId(curNode);
+
+	CfgNode* endRepeatNode = parseSimpleStatement(startRepeatNode, statementNode);
+
+	/* Parse condition node and its operation tree */
+	CfgNode* condCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!condCfgNode) {
+		printf("Failed to allocate memory for repeat statement condition cfg node object\n");
+		return NULL;
+	}
+	condCfgNode->type = NODE_TYPE_REPEAT_STAT;
+
+	OpTreeNode* condOpTree = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+	parseOperationTree(condOpTree, repeatCondNode->getChild(repeatCondNode, 0));
+	condCfgNode->opTree = condOpTree;
+
+	/* End of repeat body link to condition node */
+	addChild(endRepeatNode, condCfgNode);
+	assignId(endRepeatNode);
+
+	/* Condition node link to the start of repeat body */
+	addChild(condCfgNode, startRepeatNode);
+	assignId(condCfgNode);
+
+	/* Create an empty node that is going to be after/outside of repeat statement */
+	CfgNode* outsideRepeatNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!outsideRepeatNode) {
+		printf("Failed to allocate memory for the cfg node object of the outside node of 'repeat statement'\n");
+		return NULL;
+	}
+	outsideRepeatNode->type = NODE_TYPE_EMPTY;
+
+	/* Link condition node to the outside node */
+	addChild(condCfgNode, outsideRepeatNode);
+
+	return outsideRepeatNode;
+}
+
 CfgNode* parseStatements(CfgNode *curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements)
 {
 	for (int i = startIndex; i < startIndex + numberOfStatements; ++i) {
 		pANTLR3_BASE_TREE statementNode = baseNode->getChild(baseNode, i);
 		if (statementNode->getChildCount(statementNode) == 2) {		/* repeat-until loop */
-			;		/* to handle */
-		}
-		else {
+			pANTLR3_BASE_TREE repeatStatNode = statementNode->getChild(statementNode, 0);
+			pANTLR3_BASE_TREE repeatCondNode = statementNode->getChild(statementNode, 1);
+			curNode = parseRepeatStatement(curNode, repeatStatNode, repeatCondNode);
+		} else {
 			pANTLR3_BASE_TREE baseStatementNode = statementNode->getChild(statementNode, 0);
-			const char* baseStatementString = (const char*)baseStatementNode->getText(baseStatementNode)->chars;
-			if (strcmp("ExpressionStatement", baseStatementString) == 0) {
-				curNode = parseExpressionStatement(curNode, baseStatementNode);
-			} else if (strcmp("IfStatement", baseStatementString) == 0) {
-				curNode = parseIfStatement(curNode, baseStatementNode);
-			} else if (strcmp("WhileStatement", baseStatementString) == 0) {
-				curNode = parseWhileStatement(curNode, baseStatementNode);
-			}
-			/* Add handling of other expressions */
+			curNode = parseSimpleStatement(curNode, baseStatementNode);
 		}
 	}
 	return curNode;

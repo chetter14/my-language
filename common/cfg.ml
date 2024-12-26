@@ -6,12 +6,10 @@
 end */
 
 def foo (x of int) of char
-	if (x == 2) then
-		if (y == 10) then
-			z = 1;
-		else 
-			z = 2;		
-	else z = 2 * 3;
-	
-	z = 1000;
+	x = 2;
+	{
+		x = x + 1;
+		y = y * 2;
+	} while x < 6;
+	z = y / x;
 end
