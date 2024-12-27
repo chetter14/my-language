@@ -330,7 +330,7 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 	}
 }
 
-CfgNode* parseStatements(CfgNode* curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements);
+CfgNode* parseStatements(CfgNode* curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements, CfgNode *outsideLoopNode);
 
 CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNode)
 {
@@ -352,7 +352,7 @@ CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNo
 	return exprCfgNode;
 }
 
-CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode)
+CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode, CfgNode *outsideLoopNode)
 {
 	/* Parse condition node and its operation tree */
 	pANTLR3_BASE_TREE conditionNode = ifStatNode->getChild(ifStatNode, 0);
@@ -382,7 +382,15 @@ CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode)
 	addChild(condCfgNode, thenCfgNode);
 	assignId(condCfgNode);
 
-	CfgNode* lastThenCfgNode = parseStatements(thenCfgNode, thenNode, 0, thenNode->getChildCount(thenNode));
+	CfgNode* lastThenCfgNode = parseStatements(thenCfgNode, thenNode, 0, thenNode->getChildCount(thenNode), outsideLoopNode);
+
+	/* Create an empty node that is the end of "then" and "else" clauses */
+	CfgNode* endIfNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!endIfNode) {
+		printf("Failed to allocate memory for the cfg node object of the end of 'if statement'\n");
+		return NULL;
+	}
+	endIfNode->type = NODE_TYPE_EMPTY;
 	
 	/* Parse "else" clause if it exists */
 	CfgNode *lastElseCfgNode = NULL;
@@ -397,16 +405,10 @@ CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode)
 
 		addChild(condCfgNode, elseCfgNode);
 
-		lastElseCfgNode = parseStatements(elseCfgNode, elseNode, 0, elseNode->getChildCount(elseNode));
+		lastElseCfgNode = parseStatements(elseCfgNode, elseNode, 0, elseNode->getChildCount(elseNode), outsideLoopNode);
+	} else {				/* No "else block" -> link to the end node as well */
+		addChild(condCfgNode, endIfNode);
 	}
-
-	/* Create an empty node that is the end of "then" and "else" clauses */
-	CfgNode* endIfNode = (CfgNode*)calloc(1, sizeof(CfgNode));
-	if (!endIfNode) {
-		printf("Failed to allocate memory for the cfg node object of the end of 'if statement'\n");
-		return NULL;
-	}
-	endIfNode->type = NODE_TYPE_EMPTY;
 
 	addChild(lastThenCfgNode, endIfNode);
 	assignId(lastThenCfgNode);
@@ -445,11 +447,19 @@ CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
 	}
 	endWhileNode->type = NODE_TYPE_EMPTY;
 
+	/* Outside node of the while loop */
+	CfgNode* outsideWhileNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!outsideWhileNode) {
+		printf("Failed to allocate memory for the cfg node object of the outside node of 'while statement'\n");
+		return NULL;
+	}
+	outsideWhileNode->type = NODE_TYPE_EMPTY;
+
 	/* Parse statements to repeat */
 	CfgNode* lastWhileBodyNode = NULL;
 	if (whileStatNode->getChildCount(whileStatNode) == 2) {		/* If there is body for while loop */
 		pANTLR3_BASE_TREE bodyNode = whileStatNode->getChild(whileStatNode, 1);
-		lastWhileBodyNode = parseStatements(condCfgNode, bodyNode, 0, bodyNode->getChildCount(bodyNode));
+		lastWhileBodyNode = parseStatements(condCfgNode, bodyNode, 0, bodyNode->getChildCount(bodyNode), outsideWhileNode);
 	}
 
 	if (lastWhileBodyNode) {
@@ -464,14 +474,7 @@ CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
 	addChild(endWhileNode, condCfgNode);
 	assignId(endWhileNode);
 
-	/* Link condition node to the node outside of the while loop */
-	CfgNode* outsideWhileNode = (CfgNode*)calloc(1, sizeof(CfgNode));
-	if (!outsideWhileNode) {
-		printf("Failed to allocate memory for the cfg node object of the outside node of 'while statement'\n");
-		return NULL;
-	}
-	outsideWhileNode->type = NODE_TYPE_EMPTY;
-
+	/* Link condition node to the outside node */
 	addChild(condCfgNode, outsideWhileNode);
 	if (!lastWhileBodyNode) {
 		assignId(condCfgNode);
@@ -480,25 +483,62 @@ CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
 	return outsideWhileNode;
 }
 
-CfgNode* parseBlockStatement(CfgNode* curNode, pANTLR3_BASE_TREE blockStatNode)
+CfgNode* parseBlockStatement(CfgNode* curNode, pANTLR3_BASE_TREE blockStatNode, CfgNode *outsideLoopNode)
 {
-	return parseStatements(curNode, blockStatNode, 0, blockStatNode->getChildCount(blockStatNode));
+	return parseStatements(curNode, blockStatNode, 0, blockStatNode->getChildCount(blockStatNode), outsideLoopNode);
 }
 
-CfgNode* parseSimpleStatement(CfgNode* curNode, pANTLR3_BASE_TREE simpleStatNode)
+CfgNode* parseBreakStatement(CfgNode* curNode, pANTLR3_BASE_TREE breakStatNode, CfgNode *outsideLoopNode)
+{
+	/* Create break cfg node */
+	CfgNode* breakCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!breakCfgNode) {
+		printf("Failed to allocate memory for break statement cfg node object\n");
+		return NULL;
+	}
+	breakCfgNode->type = NODE_TYPE_BREAK_STAT;
+
+	if (outsideLoopNode == NULL) {
+		/* !!! Add extra handling !!! */
+		printf("ERROR! Break statement is called outside of loop!\n");
+		return NULL;
+	}
+
+	/* Link current cfg to the break node */
+	addChild(curNode, breakCfgNode);
+	assignId(curNode);
+
+	/* Create a stub cfg node */
+	CfgNode* stubNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!stubNode) {
+		printf("Failed to allocate memory for stub cfg node object after break statement\n");
+		return NULL;
+	}
+	stubNode->type = NODE_TYPE_EMPTY;
+	
+	/* Link break node to the empty node */
+	addChild(breakCfgNode, stubNode);
+	assignId(breakCfgNode);
+
+	/* Link break to the outside loop node */
+	addChild(breakCfgNode, outsideLoopNode);
+
+	return stubNode;
+}
+
+CfgNode* parseSimpleStatement(CfgNode* curNode, pANTLR3_BASE_TREE simpleStatNode, CfgNode *outsideLoopNode)
 {
 	const char* baseStatementString = (const char*)simpleStatNode->getText(simpleStatNode)->chars;
 	if (strcmp("ExpressionStatement", baseStatementString) == 0) {
 		curNode = parseExpressionStatement(curNode, simpleStatNode);
-	}
-	else if (strcmp("IfStatement", baseStatementString) == 0) {
-		curNode = parseIfStatement(curNode, simpleStatNode);
-	}
-	else if (strcmp("WhileStatement", baseStatementString) == 0) {
+	} else if (strcmp("IfStatement", baseStatementString) == 0) {
+		curNode = parseIfStatement(curNode, simpleStatNode, outsideLoopNode);
+	} else if (strcmp("WhileStatement", baseStatementString) == 0) {
 		curNode = parseWhileStatement(curNode, simpleStatNode);
-	}
-	else if (strcmp("BlockStatement", baseStatementString) == 0) {
-		curNode = parseBlockStatement(curNode, simpleStatNode);
+	} else if (strcmp("BlockStatement", baseStatementString) == 0) {
+		curNode = parseBlockStatement(curNode, simpleStatNode, outsideLoopNode);
+	} else if (strcmp("BreakStatement", baseStatementString) == 0) {
+		curNode = parseBreakStatement(curNode, simpleStatNode, outsideLoopNode);
 	}
 	return curNode;
 }
@@ -516,7 +556,16 @@ CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode,
 	addChild(curNode, startRepeatNode);
 	assignId(curNode);
 
-	CfgNode* endRepeatNode = parseSimpleStatement(startRepeatNode, statementNode);
+	/* Create an empty node that is going to be after/outside of repeat statement */
+	CfgNode* outsideRepeatNode = (CfgNode*)calloc(1, sizeof(CfgNode));
+	if (!outsideRepeatNode) {
+		printf("Failed to allocate memory for the cfg node object of the outside node of 'repeat statement'\n");
+		return NULL;
+	}
+	outsideRepeatNode->type = NODE_TYPE_EMPTY;
+
+	/* Parse statements in repeat body */
+	CfgNode* endRepeatNode = parseSimpleStatement(startRepeatNode, statementNode, outsideRepeatNode);
 
 	/* Parse condition node and its operation tree */
 	CfgNode* condCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
@@ -538,21 +587,13 @@ CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode,
 	addChild(condCfgNode, startRepeatNode);
 	assignId(condCfgNode);
 
-	/* Create an empty node that is going to be after/outside of repeat statement */
-	CfgNode* outsideRepeatNode = (CfgNode*)calloc(1, sizeof(CfgNode));
-	if (!outsideRepeatNode) {
-		printf("Failed to allocate memory for the cfg node object of the outside node of 'repeat statement'\n");
-		return NULL;
-	}
-	outsideRepeatNode->type = NODE_TYPE_EMPTY;
-
 	/* Link condition node to the outside node */
 	addChild(condCfgNode, outsideRepeatNode);
 
 	return outsideRepeatNode;
 }
 
-CfgNode* parseStatements(CfgNode *curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements)
+CfgNode* parseStatements(CfgNode *curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements, CfgNode *outsideLoopNode)
 {
 	for (int i = startIndex; i < startIndex + numberOfStatements; ++i) {
 		pANTLR3_BASE_TREE statementNode = baseNode->getChild(baseNode, i);
@@ -562,7 +603,7 @@ CfgNode* parseStatements(CfgNode *curNode, pANTLR3_BASE_TREE baseNode, int start
 			curNode = parseRepeatStatement(curNode, repeatStatNode, repeatCondNode);
 		} else {
 			pANTLR3_BASE_TREE baseStatementNode = statementNode->getChild(statementNode, 0);
-			curNode = parseSimpleStatement(curNode, baseStatementNode);
+			curNode = parseSimpleStatement(curNode, baseStatementNode, outsideLoopNode);
 		}
 	}
 	return curNode;
@@ -608,7 +649,7 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 	}
 	startNode->type = NODE_TYPE_START;
 		
-	CfgNode* curNode = parseStatements(startNode, functionNode, 1, functionNode->getChildCount(functionNode) - 1);
+	CfgNode* curNode = parseStatements(startNode, functionNode, 1, functionNode->getChildCount(functionNode) - 1, NULL);
 
 	CfgNode *endNode = (CfgNode*)calloc(1, sizeof(CfgNode));
 	if (!endNode) {
