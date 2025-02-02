@@ -34,6 +34,10 @@ char* getDescByNodeType(CfgNodeType type)
 char* getDescByOpTreeNodeType(OpTreeNodeType type)
 {
 	switch (type) {
+	case OP_TREE_NODE_TYPE_ARRAY_ACCESS: return "ARRAY ACCESS";
+	case OP_TREE_NODE_TYPE_ARRAY_INDEX: return "ARRAY INDEX";
+	case OP_TREE_NODE_TYPE_FUNCTION_CALL: return "FUNC CALL";
+	case OP_TREE_NODE_TYPE_FUNC_CALL_ARGS: return "FUNC ARGS";
 	case OP_TREE_NODE_TYPE_WRITE: return "WRITE";
 	case OP_TREE_NODE_TYPE_READ: return "READ";
 	case OP_TREE_NODE_TYPE_ADDITION: return "ADD";
@@ -57,7 +61,8 @@ char* getDescByOpTreeNodeType(OpTreeNodeType type)
 	case OP_TREE_NODE_TYPE_UNARY_BIT_NOT: return "BITWISE NOT";
 	case OP_TREE_NODE_TYPE_VALUE_PLACE: return "VALUE PLACE";
 	case OP_TREE_NODE_TYPE_VALUE_INT: return "INT";
-	case OP_TREE_NODE_TYPE_VALUE_FLOAT: return "FLOAT";
+	case OP_TREE_NODE_TYPE_VALUE_BOOL: return "BOOL";
+	case OP_TREE_NODE_TYPE_VALUE_CHAR: return "CHAR";
 	case OP_TREE_NODE_TYPE_VALUE_STRING: return "STRING";
 	}
 }
@@ -221,7 +226,15 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 	++opTreeNodeCounter;
 
 	const char *elemText = (const char*)exprElemNode->getText(exprElemNode)->chars;
-	if (strcmp(elemText, "==") == 0)			/* Equal */
+	if (strcmp(elemText, "ArrayAccess") == 0)	/* Array access */
+		opTreeNode->type = OP_TREE_NODE_TYPE_ARRAY_ACCESS;
+	else if (strcmp(elemText, "Index") == 0)		/* Index (or indices) to access array */
+		opTreeNode->type = OP_TREE_NODE_TYPE_ARRAY_INDEX;
+	else if (strcmp(elemText, "FunctionCall") == 0)	/* Function call */
+		opTreeNode->type = OP_TREE_NODE_TYPE_FUNCTION_CALL;
+	else if (strcmp(elemText, "Args") == 0)			/* Arguments for function call */
+		opTreeNode->type = OP_TREE_NODE_TYPE_FUNC_CALL_ARGS;
+	else if (strcmp(elemText, "==") == 0)			/* Equal */
 		opTreeNode->type = OP_TREE_NODE_TYPE_EQUAL;
 	else if (elemText[0] == '=')						/* Assignment */
 		opTreeNode->type = OP_TREE_NODE_TYPE_WRITE;
@@ -267,6 +280,64 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 		opTreeNode->type = OP_TREE_NODE_TYPE_VALUE;
 
 	switch (opTreeNode->type) {
+		case OP_TREE_NODE_TYPE_ARRAY_ACCESS:
+		{
+			int childCount = exprElemNode->getChildCount(exprElemNode);
+
+			opTreeNode->numberOfNext = childCount;
+			opTreeNode->next = (OpTreeNode**)calloc(opTreeNode->numberOfNext, sizeof(OpTreeNode*));
+
+			/* Value place that is our array */
+			OpTreeNode* valuePlace = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+			opTreeNode->next[0] = valuePlace;
+			parseOperationTree(valuePlace, exprElemNode->getChild(exprElemNode, 0));
+
+			/* Array indices we want to access */
+			for (int i = 1; i < childCount; ++i)
+			{
+				OpTreeNode* index = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+				opTreeNode->next[i] = index;
+				parseOperationTree(index, exprElemNode->getChild(exprElemNode, i));
+			}
+			break;
+		}
+		case OP_TREE_NODE_TYPE_ARRAY_INDEX:
+		{
+			/* There can be 1 or 2 children (indices) */
+			int childCount = exprElemNode->getChildCount(exprElemNode);
+			
+			opTreeNode->numberOfNext = childCount;
+			opTreeNode->next = (OpTreeNode**)calloc(opTreeNode->numberOfNext, sizeof(OpTreeNode*));
+
+			/* Indices that are expressions */
+			for (int i = 0; i < childCount; ++i)
+			{
+				OpTreeNode* expr = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+				opTreeNode->next[i] = expr;
+				parseOperationTree(expr, exprElemNode->getChild(exprElemNode, i));
+			}
+			break;
+		}
+		case OP_TREE_NODE_TYPE_FUNC_CALL_ARGS:
+		{
+			/* There can be 0 or more children (arguments) */
+			int childCount = exprElemNode->getChildCount(exprElemNode);
+
+			opTreeNode->numberOfNext = childCount;
+			if (childCount != 0)
+			{
+				opTreeNode->next = (OpTreeNode**)calloc(opTreeNode->numberOfNext, sizeof(OpTreeNode*));
+
+				for (int i = 0; i < childCount; ++i)
+				{
+					OpTreeNode* argument = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+					opTreeNode->next[i] = argument;
+					parseOperationTree(argument, exprElemNode->getChild(exprElemNode, i));
+				}
+			}
+			break;
+		}
+		case OP_TREE_NODE_TYPE_FUNCTION_CALL:
 		case OP_TREE_NODE_TYPE_WRITE:
 		case OP_TREE_NODE_TYPE_ADDITION:
 		case OP_TREE_NODE_TYPE_SUBTRACTION:
@@ -287,6 +358,9 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 		{
 			opTreeNode->numberOfNext = 2;
 			
+			/* Allocate memory for the array of next operation tree nodes */
+			opTreeNode->next = (OpTreeNode**)calloc(opTreeNode->numberOfNext, sizeof(OpTreeNode*));
+
 			OpTreeNode* operand1 = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[0] = operand1;
 			parseOperationTree(operand1, exprElemNode->getChild(exprElemNode, 0));
@@ -302,29 +376,45 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 		{
 			opTreeNode->numberOfNext = 1;
 
+			/* Allocate memory for the array of next operation tree nodes */
+			opTreeNode->next = (OpTreeNode**)calloc(opTreeNode->numberOfNext, sizeof(OpTreeNode*));
+
 			OpTreeNode* operand = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[0] = operand;
 			parseOperationTree(operand, exprElemNode->getChild(exprElemNode, 0));
 			break;
 		}
 		default: {															/* Handle not operations node */
-			if (atoi(elemText) != 0) {			/* It's integer */
+			if (strcmp(elemText, "true") == 0 || strcmp(elemText, "false") == 0) {	/* It's BOOLEAN */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_BOOL;
+				if (strcmp(elemText, "true") == 0)
+					opTreeNode->data.number = 1;				/* Equivalent to true */
+				else
+					opTreeNode->data.number = 0;				/* Equivalent to false */
+			}
+			else if (elemText[0] == '\'') {								/* It's CHAR */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_CHAR;
+				opTreeNode->data.number = elemText[1];		/* Made of just one character */
+			}
+			else if (elemText[0] == '\"') {								/* It's STRING */
+				int charsLen = strlen(elemText) - 2;	/* Subtract the first and last double quotes */
+				char* string = (char*)calloc(charsLen + 1, sizeof(char));
+
+				strncpy(string, &elemText[1], charsLen);
+				string[charsLen] = '\0';					/* Set the end of string */
+				
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_STRING;
+				opTreeNode->data.string = string;
+			}
+			else if (atoi(elemText) != 0 || strcmp(elemText, "0") == 0) {	/* It's INTEGER */
 				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_INT;
 				opTreeNode->data.number = atoi(elemText);
 			}
-			else if (atof(elemText) != 0.0) {	/* It's float */
-				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_FLOAT;
-				opTreeNode->data.real = atof(elemText);
-			}
-			else if (elemText[0] == "\"") {			/* It's string (starts with " symbol) */
-				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_STRING;
-				opTreeNode->data.string = elemText;
-			}
-			else {									/* Identifier */
+			else {														/* IDENTIFIER */
 				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
 				opTreeNode->data.identifier = elemText;
 			}
-			/* !!! Add handling of bit, hex, boolean, and char literals !!! */
+			/* !!! Add handling of BIT and HEX literals !!! */
 			opTreeNode->numberOfNext = 0;
 		}
 	}
@@ -676,8 +766,10 @@ char* getOpTreeNodeDesc(OpTreeNode *node)
 	char value[30];
 	if (node->type == OP_TREE_NODE_TYPE_VALUE_INT) {
 		snprintf(value, 30, "%d", node->data.number);
-	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_FLOAT) {
-		snprintf(value, 30, "%f", node->data.real);
+	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_BOOL) {
+		snprintf(value, 30, "%d", node->data.number);
+	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_CHAR) {
+		snprintf(value, 30, "%c", node->data.number);
 	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_STRING) {
 		snprintf(value, 30, "%s", node->data.string);
 	} else if (node->type == OP_TREE_NODE_TYPE_VALUE_PLACE) {

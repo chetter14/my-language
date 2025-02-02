@@ -24,22 +24,24 @@ typedef enum {
 	OP_TREE_NODE_TYPE_UNARY_LOGICAL_NOT,
 	OP_TREE_NODE_TYPE_UNARY_BIT_NOT,
 	OP_TREE_NODE_TYPE_FUNCTION_CALL,
+	OP_TREE_NODE_TYPE_FUNC_CALL_ARGS,
 	OP_TREE_NODE_TYPE_ARRAY_ACCESS,
+	OP_TREE_NODE_TYPE_ARRAY_INDEX,
 	OP_TREE_NODE_TYPE_VALUE_PLACE,
 	OP_TREE_NODE_TYPE_VALUE_INT,
-	OP_TREE_NODE_TYPE_VALUE_FLOAT,
+	OP_TREE_NODE_TYPE_VALUE_BOOL,
+	OP_TREE_NODE_TYPE_VALUE_CHAR,
 	OP_TREE_NODE_TYPE_VALUE_STRING,
 	OP_TREE_NODE_TYPE_VALUE					/* Like a general value (not operation) */
 } OpTreeNodeType;
 
 typedef struct OpTreeNode {
 	OpTreeNodeType type;
-	struct OpTreeNode* next[2];		// later modify to struct OpTreeNode **
+	struct OpTreeNode** next;
 	int numberOfNext;
 	int id;
 	union {
 		int number;
-		float real;
 		char* string;
 		char* identifier;
 	} data;

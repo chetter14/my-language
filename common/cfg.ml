@@ -40,7 +40,7 @@ end */
 	z = y / x;
 end */
 
-def foo_break(x of int)
+/* def foo_break(x of int)
 	while x < 10
 	{
 		y = x * 2;
@@ -61,4 +61,10 @@ def foo_break(x of int)
 		x = x + 1;
 	}
 	end
+end */
+
+def foo_array_func(x of int) of bool
+	a = x[1][2, 4..5];
+	
+	c = z('x')[0]("name", true);
 end
