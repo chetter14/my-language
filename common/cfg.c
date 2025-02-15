@@ -214,6 +214,17 @@ void fillParameterList(ParameterList* parameterList, pANTLR3_BASE_TREE paramList
 	parameterList->numberOfParams = numberOfParameters;
 }
 
+int convertBitsStringToNumber(const char* str)
+{
+	int result = 0;
+	/* Convert each character (bit) to an integer */
+	while (*str) {
+		result = (result << 1) | (*str - '0');  /* Shift left and add bit */
+		str++;
+	}
+	return result;
+}
+
 void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 {
 	/* 
@@ -409,6 +420,14 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 			else if (atoi(elemText) != 0 || strcmp(elemText, "0") == 0) {	/* It's INTEGER */
 				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_INT;
 				opTreeNode->data.number = atoi(elemText);
+			}
+			else if (elemText[0] == '0' && (elemText[1] == 'x' || elemText[1] == 'X')) {	/* It's HEX value */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_INT;
+				opTreeNode->data.number = strtol(elemText, NULL, 16);
+			}
+			else if (elemText[0] == '0' && (elemText[1] == 'b' || elemText[1] == 'B')) {	/* It's BITS value */
+				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_INT;
+				opTreeNode->data.number = convertBitsStringToNumber(&elemText[2]);	/* pass the starting bit */
 			}
 			else {														/* IDENTIFIER */
 				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
