@@ -913,7 +913,12 @@ void printCfgNode(FILE *cfgFile, CfgNode* curNode)
 
 void printCfgSubroutine(CfgSubroutine* curSubroutine)
 {
-	FILE* cfgFile = fopen("cfg.dot", "w");
+	/* Make up a filename string (give a name of function) */
+	char filename[100];
+	strcpy(filename, curSubroutine->functionName);
+	strcat(filename, ".dot");
+
+	FILE* cfgFile = fopen(filename, "w");
 	if (!cfgFile) {
 		printf("Failed to open cfg.dot file\n");
 		return NULL;
@@ -944,8 +949,13 @@ CfgFile getCfg(char* sourceFile, pANTLR3_BASE_TREE sourceAST, char* errorMessage
 		prevSubroutine = curSubroutine;
 	}
 
-	printCfgSubroutine(cfgFile.headSubroutine);
-	printf("Printed out the cfg of subroutine - %s\n", cfgFile.headSubroutine->functionName);
+	curSubroutine = cfgFile.headSubroutine;
+	for (int i = 0; i < numberOfFunctions; ++i) {
+		printCfgSubroutine(curSubroutine);
+		printf("Printed out the cfg of subroutine - %s\n", curSubroutine->functionName);
+
+		curSubroutine = curSubroutine->next;
+	}
 
 	return cfgFile;
 
