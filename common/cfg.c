@@ -1,4 +1,5 @@
 #include "cfg.h"
+#include "callGraph.h"
 #include <antlr3.h>
 #include <stdlib.h>
 #include <string.h>
@@ -225,7 +226,7 @@ int convertBitsStringToNumber(const char* str)
 	return result;
 }
 
-void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
+void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode, const char* curFuncName)
 {
 	/* 
 	Get the text of exprElemNode, assign type and data to opTreeNode
@@ -301,14 +302,14 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 			/* Value place that is our array */
 			OpTreeNode* valuePlace = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[0] = valuePlace;
-			parseOperationTree(valuePlace, exprElemNode->getChild(exprElemNode, 0));
+			parseOperationTree(valuePlace, exprElemNode->getChild(exprElemNode, 0), curFuncName);
 
 			/* Array indices we want to access */
 			for (int i = 1; i < childCount; ++i)
 			{
 				OpTreeNode* index = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 				opTreeNode->next[i] = index;
-				parseOperationTree(index, exprElemNode->getChild(exprElemNode, i));
+				parseOperationTree(index, exprElemNode->getChild(exprElemNode, i), curFuncName);
 			}
 			break;
 		}
@@ -325,7 +326,7 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 			{
 				OpTreeNode* expr = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 				opTreeNode->next[i] = expr;
-				parseOperationTree(expr, exprElemNode->getChild(exprElemNode, i));
+				parseOperationTree(expr, exprElemNode->getChild(exprElemNode, i), curFuncName);
 			}
 			break;
 		}
@@ -343,12 +344,31 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 				{
 					OpTreeNode* argument = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 					opTreeNode->next[i] = argument;
-					parseOperationTree(argument, exprElemNode->getChild(exprElemNode, i));
+					parseOperationTree(argument, exprElemNode->getChild(exprElemNode, i), curFuncName);
 				}
 			}
 			break;
 		}
 		case OP_TREE_NODE_TYPE_FUNCTION_CALL:
+		{
+			opTreeNode->numberOfNext = 2;
+
+			/* Allocate memory for the array of next operation tree nodes */
+			opTreeNode->next = (OpTreeNode**)calloc(opTreeNode->numberOfNext, sizeof(OpTreeNode*));
+
+			OpTreeNode* function = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+			opTreeNode->next[0] = function;
+			parseOperationTree(function, exprElemNode->getChild(exprElemNode, 0), curFuncName);
+
+			if (function->type == OP_TREE_NODE_TYPE_VALUE_PLACE) {	/* If it's a function call by name */
+				addCall(curFuncName, function->data.identifier);
+			}
+
+			OpTreeNode* args = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
+			opTreeNode->next[1] = args;
+			parseOperationTree(args, exprElemNode->getChild(exprElemNode, 1), curFuncName);
+			break;
+		}
 		case OP_TREE_NODE_TYPE_WRITE:
 		case OP_TREE_NODE_TYPE_ADDITION:
 		case OP_TREE_NODE_TYPE_SUBTRACTION:
@@ -374,11 +394,11 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 
 			OpTreeNode* operand1 = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[0] = operand1;
-			parseOperationTree(operand1, exprElemNode->getChild(exprElemNode, 0));
+			parseOperationTree(operand1, exprElemNode->getChild(exprElemNode, 0), curFuncName);
 
 			OpTreeNode* operand2 = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[1] = operand2;
-			parseOperationTree(operand2, exprElemNode->getChild(exprElemNode, 1));
+			parseOperationTree(operand2, exprElemNode->getChild(exprElemNode, 1), curFuncName);
 			break;
 		}
 		case OP_TREE_NODE_TYPE_UNARY_MINUS:
@@ -392,7 +412,7 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 
 			OpTreeNode* operand = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
 			opTreeNode->next[0] = operand;
-			parseOperationTree(operand, exprElemNode->getChild(exprElemNode, 0));
+			parseOperationTree(operand, exprElemNode->getChild(exprElemNode, 0), curFuncName);
 			break;
 		}
 		default: {															/* Handle not operations node */
@@ -433,15 +453,14 @@ void parseOperationTree(OpTreeNode* opTreeNode, pANTLR3_BASE_TREE exprElemNode)
 				opTreeNode->type = OP_TREE_NODE_TYPE_VALUE_PLACE;
 				opTreeNode->data.identifier = elemText;
 			}
-			/* !!! Add handling of BIT and HEX literals !!! */
 			opTreeNode->numberOfNext = 0;
 		}
 	}
 }
 
-CfgNode* parseStatements(CfgNode* curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements, CfgNode *outsideLoopNode);
+CfgNode* parseStatements(CfgNode* curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements, CfgNode *outsideLoopNode, const char* curFuncName);
 
-CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNode)
+CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNode, const char* curFuncName)
 {
 	pANTLR3_BASE_TREE exprElemNode = exprStatNode->getChild(exprStatNode, 0);
 	CfgNode *exprCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
@@ -452,7 +471,7 @@ CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNo
 	exprCfgNode->type = NODE_TYPE_EXPR_STAT;
 
 	OpTreeNode *opTree = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
-	parseOperationTree(opTree, exprElemNode);
+	parseOperationTree(opTree, exprElemNode, curFuncName);
 	exprCfgNode->opTree = opTree;
 	
 	addChild(curNode, exprCfgNode);
@@ -461,7 +480,7 @@ CfgNode *parseExpressionStatement(CfgNode* curNode, pANTLR3_BASE_TREE exprStatNo
 	return exprCfgNode;
 }
 
-CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode, CfgNode *outsideLoopNode)
+CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode, CfgNode *outsideLoopNode, const char* curFuncName)
 {
 	/* Parse condition node and its operation tree */
 	pANTLR3_BASE_TREE conditionNode = ifStatNode->getChild(ifStatNode, 0);
@@ -473,7 +492,7 @@ CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode, CfgNod
 	condCfgNode->type = NODE_TYPE_IF_STAT;
 
 	OpTreeNode* condOpTree = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
-	parseOperationTree(condOpTree, conditionNode->getChild(conditionNode, 0));
+	parseOperationTree(condOpTree, conditionNode->getChild(conditionNode, 0), curFuncName);
 	condCfgNode->opTree = condOpTree;
 
 	addChild(curNode, condCfgNode);
@@ -491,7 +510,7 @@ CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode, CfgNod
 	addChild(condCfgNode, thenCfgNode);
 	assignId(condCfgNode);
 
-	CfgNode* lastThenCfgNode = parseStatements(thenCfgNode, thenNode, 0, thenNode->getChildCount(thenNode), outsideLoopNode);
+	CfgNode* lastThenCfgNode = parseStatements(thenCfgNode, thenNode, 0, thenNode->getChildCount(thenNode), outsideLoopNode, curFuncName);
 
 	/* Create an empty node that is the end of "then" and "else" clauses */
 	CfgNode* endIfNode = (CfgNode*)calloc(1, sizeof(CfgNode));
@@ -514,7 +533,7 @@ CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode, CfgNod
 
 		addChild(condCfgNode, elseCfgNode);
 
-		lastElseCfgNode = parseStatements(elseCfgNode, elseNode, 0, elseNode->getChildCount(elseNode), outsideLoopNode);
+		lastElseCfgNode = parseStatements(elseCfgNode, elseNode, 0, elseNode->getChildCount(elseNode), outsideLoopNode, curFuncName);
 	} else {				/* No "else block" -> link to the end node as well */
 		addChild(condCfgNode, endIfNode);
 	}
@@ -530,7 +549,7 @@ CfgNode* parseIfStatement(CfgNode* curNode, pANTLR3_BASE_TREE ifStatNode, CfgNod
 	return endIfNode;
 }
 
-CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
+CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode, const char* curFuncName)
 {
 	/* Parse condition node and its operation tree */
 	pANTLR3_BASE_TREE conditionNode = whileStatNode->getChild(whileStatNode, 0);
@@ -542,7 +561,7 @@ CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
 	condCfgNode->type = NODE_TYPE_WHILE_STAT;
 
 	OpTreeNode* condOpTree = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
-	parseOperationTree(condOpTree, conditionNode->getChild(conditionNode, 0));
+	parseOperationTree(condOpTree, conditionNode->getChild(conditionNode, 0), curFuncName);
 	condCfgNode->opTree = condOpTree;
 
 	addChild(curNode, condCfgNode);
@@ -568,7 +587,7 @@ CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
 	CfgNode* lastWhileBodyNode = NULL;
 	if (whileStatNode->getChildCount(whileStatNode) == 2) {		/* If there is body for while loop */
 		pANTLR3_BASE_TREE bodyNode = whileStatNode->getChild(whileStatNode, 1);
-		lastWhileBodyNode = parseStatements(condCfgNode, bodyNode, 0, bodyNode->getChildCount(bodyNode), outsideWhileNode);
+		lastWhileBodyNode = parseStatements(condCfgNode, bodyNode, 0, bodyNode->getChildCount(bodyNode), outsideWhileNode, curFuncName);
 	}
 
 	if (lastWhileBodyNode) {
@@ -592,9 +611,9 @@ CfgNode* parseWhileStatement(CfgNode* curNode, pANTLR3_BASE_TREE whileStatNode)
 	return outsideWhileNode;
 }
 
-CfgNode* parseBlockStatement(CfgNode* curNode, pANTLR3_BASE_TREE blockStatNode, CfgNode *outsideLoopNode)
+CfgNode* parseBlockStatement(CfgNode* curNode, pANTLR3_BASE_TREE blockStatNode, CfgNode *outsideLoopNode, const char* curFuncName)
 {
-	return parseStatements(curNode, blockStatNode, 0, blockStatNode->getChildCount(blockStatNode), outsideLoopNode);
+	return parseStatements(curNode, blockStatNode, 0, blockStatNode->getChildCount(blockStatNode), outsideLoopNode, curFuncName);
 }
 
 CfgNode* parseBreakStatement(CfgNode* curNode, pANTLR3_BASE_TREE breakStatNode, CfgNode *outsideLoopNode)
@@ -635,24 +654,24 @@ CfgNode* parseBreakStatement(CfgNode* curNode, pANTLR3_BASE_TREE breakStatNode, 
 	return stubNode;
 }
 
-CfgNode* parseSimpleStatement(CfgNode* curNode, pANTLR3_BASE_TREE simpleStatNode, CfgNode *outsideLoopNode)
+CfgNode* parseSimpleStatement(CfgNode* curNode, pANTLR3_BASE_TREE simpleStatNode, CfgNode *outsideLoopNode, const char* curFuncName)
 {
 	const char* baseStatementString = (const char*)simpleStatNode->getText(simpleStatNode)->chars;
 	if (strcmp("ExpressionStatement", baseStatementString) == 0) {
-		curNode = parseExpressionStatement(curNode, simpleStatNode);
+		curNode = parseExpressionStatement(curNode, simpleStatNode, curFuncName);
 	} else if (strcmp("IfStatement", baseStatementString) == 0) {
-		curNode = parseIfStatement(curNode, simpleStatNode, outsideLoopNode);
+		curNode = parseIfStatement(curNode, simpleStatNode, outsideLoopNode, curFuncName);
 	} else if (strcmp("WhileStatement", baseStatementString) == 0) {
-		curNode = parseWhileStatement(curNode, simpleStatNode);
+		curNode = parseWhileStatement(curNode, simpleStatNode, curFuncName);
 	} else if (strcmp("BlockStatement", baseStatementString) == 0) {
-		curNode = parseBlockStatement(curNode, simpleStatNode, outsideLoopNode);
+		curNode = parseBlockStatement(curNode, simpleStatNode, outsideLoopNode, curFuncName);
 	} else if (strcmp("BreakStatement", baseStatementString) == 0) {
 		curNode = parseBreakStatement(curNode, simpleStatNode, outsideLoopNode);
 	}
 	return curNode;
 }
 
-CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode, pANTLR3_BASE_TREE repeatCondNode)
+CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode, pANTLR3_BASE_TREE repeatCondNode, const char* curFuncName)
 {
 	/* Create an empty node that is the start of repeat statement */
 	CfgNode* startRepeatNode = (CfgNode*)calloc(1, sizeof(CfgNode));
@@ -674,7 +693,7 @@ CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode,
 	outsideRepeatNode->type = NODE_TYPE_EMPTY;
 
 	/* Parse statements in repeat body */
-	CfgNode* endRepeatNode = parseSimpleStatement(startRepeatNode, statementNode, outsideRepeatNode);
+	CfgNode* endRepeatNode = parseSimpleStatement(startRepeatNode, statementNode, outsideRepeatNode, curFuncName);
 
 	/* Parse condition node and its operation tree */
 	CfgNode* condCfgNode = (CfgNode*)calloc(1, sizeof(CfgNode));
@@ -685,7 +704,7 @@ CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode,
 	condCfgNode->type = NODE_TYPE_REPEAT_STAT;
 
 	OpTreeNode* condOpTree = (OpTreeNode*)calloc(1, sizeof(OpTreeNode));
-	parseOperationTree(condOpTree, repeatCondNode->getChild(repeatCondNode, 0));
+	parseOperationTree(condOpTree, repeatCondNode->getChild(repeatCondNode, 0), curFuncName);
 	condCfgNode->opTree = condOpTree;
 
 	/* End of repeat body link to condition node */
@@ -702,17 +721,17 @@ CfgNode* parseRepeatStatement(CfgNode* curNode, pANTLR3_BASE_TREE statementNode,
 	return outsideRepeatNode;
 }
 
-CfgNode* parseStatements(CfgNode *curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements, CfgNode *outsideLoopNode)
+CfgNode* parseStatements(CfgNode *curNode, pANTLR3_BASE_TREE baseNode, int startIndex, int numberOfStatements, CfgNode *outsideLoopNode, const char* curFuncName)
 {
 	for (int i = startIndex; i < startIndex + numberOfStatements; ++i) {
 		pANTLR3_BASE_TREE statementNode = baseNode->getChild(baseNode, i);
 		if (statementNode->getChildCount(statementNode) == 2) {		/* repeat-until loop */
 			pANTLR3_BASE_TREE repeatStatNode = statementNode->getChild(statementNode, 0);
 			pANTLR3_BASE_TREE repeatCondNode = statementNode->getChild(statementNode, 1);
-			curNode = parseRepeatStatement(curNode, repeatStatNode, repeatCondNode);
+			curNode = parseRepeatStatement(curNode, repeatStatNode, repeatCondNode, curFuncName);
 		} else {
 			pANTLR3_BASE_TREE baseStatementNode = statementNode->getChild(statementNode, 0);
-			curNode = parseSimpleStatement(curNode, baseStatementNode, outsideLoopNode);
+			curNode = parseSimpleStatement(curNode, baseStatementNode, outsideLoopNode, curFuncName);
 		}
 	}
 	return curNode;
@@ -758,7 +777,7 @@ CfgSubroutine *getCfgSubroutine(pANTLR3_BASE_TREE functionNode)
 	}
 	startNode->type = NODE_TYPE_START;
 		
-	CfgNode* curNode = parseStatements(startNode, functionNode, 1, functionNode->getChildCount(functionNode) - 1, NULL);
+	CfgNode* curNode = parseStatements(startNode, functionNode, 1, functionNode->getChildCount(functionNode) - 1, NULL, cfgSubroutine->functionName);
 
 	CfgNode *endNode = (CfgNode*)calloc(1, sizeof(CfgNode));
 	if (!endNode) {

@@ -2,6 +2,7 @@
 #include <string.h>
 #include "ast.h"
 #include "cfg.h"
+#include "callGraph.h"
 #include <antlr3.h>
 
 #define ERROR_MSG_SIZE 100
@@ -42,7 +43,11 @@ int main(int argc, char* argv[])
 
 	CfgFile cfg = getCfg(argv[1], tree, errorMessage);
 
+	/* Clean up resources used for AST building */
 	ASTcleanUpResources();
+
+	/* Clean up a file stream used for printing out call graph */
+	closeCallGraphFile();
 
 	return 0;
 }

@@ -136,6 +136,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\common\ast.c" />
+    <ClCompile Include="..\common\callGraph.c" />
     <ClCompile Include="..\common\cfg.c" />
     <ClCompile Include="..\common\main.c" />
     <ClCompile Include="..\common\MyLanguageLexer.c" />

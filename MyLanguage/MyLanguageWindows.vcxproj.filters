@@ -30,5 +30,8 @@
     <ClCompile Include="..\common\cfg.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\common\callGraph.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

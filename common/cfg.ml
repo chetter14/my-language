@@ -64,10 +64,17 @@ end */
 end */
 
 def foo_array_func(x of int) of bool
+/* 	
 	a = x[1][2, 4..5];
 	
 	c = z('x')[0]("name", true);
 	
 	b = 0xABCD;
 	e = 0b0101;
+*/
+	
+	a = b();
+	boo('x', false, 101);
+	voo("error");
+
 end
